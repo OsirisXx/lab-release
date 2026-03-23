@@ -1,6 +1,17 @@
 import { Navigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Loader2 } from "lucide-react";
 
 export default function Index() {
-  // For now, redirect to dashboard. Auth will gate this later.
-  return <Navigate to="/dashboard" replace />;
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return <Navigate to={user ? "/dashboard" : "/login"} replace />;
 }

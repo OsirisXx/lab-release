@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Package,
@@ -14,9 +14,11 @@ import {
   ChevronRight,
   FlaskConical,
   LogOut,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { currentUser } from "@/lib/mock-data";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/", roles: ["sa", "ci"] },
@@ -32,8 +34,18 @@ const navItems = [
 
 export function AppSidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-  const filteredNav = navItems.filter((n) => n.roles.includes(currentUser.role));
+  
+  if (!user) return null;
+  
+  const filteredNav = navItems.filter((n) => n.roles.includes(user.role));
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/login");
+  };
 
   return (
     <aside
@@ -43,15 +55,19 @@ export function AppSidebar() {
       )}
     >
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-          <FlaskConical className="h-5 w-5" />
-        </div>
+      <div className="flex items-center gap-2 px-4 h-16 border-b border-sidebar-border">
         {!collapsed && (
-          <div className="animate-fade-in">
-            <p className="text-sm font-semibold leading-none">LabTrack</p>
-            <p className="text-xs text-sidebar-foreground/60 mt-0.5">CHS Inventory</p>
-          </div>
+          <>
+            <img src="/logo/schoollogo.png" alt="School Logo" className="h-9 w-9 object-contain" />
+            <div className="flex-1 animate-fade-in">
+              <h1 className="font-bold text-sidebar-foreground text-sm">LabTrack</h1>
+              <p className="text-xs text-sidebar-foreground/50">CHS Inventory</p>
+            </div>
+            <img src="/logo/departmentlogo.png" alt="Department Logo" className="h-9 w-9 object-contain" />
+          </>
+        )}
+        {collapsed && (
+          <img src="/logo/schoollogo.png" alt="School Logo" className="h-9 w-9 object-contain mx-auto" />
         )}
       </div>
 
@@ -80,14 +96,27 @@ export function AppSidebar() {
       {/* User / Collapse */}
       <div className="border-t border-sidebar-border p-3">
         {!collapsed && (
-          <div className="flex items-center gap-3 px-2 mb-3 animate-fade-in">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground text-xs font-bold">
-              {currentUser.name.split(" ").map((n) => n[0]).join("")}
+          <div className="px-2 mb-3 animate-fade-in">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground text-xs font-bold">
+                {user.name.split(" ").map((n) => n[0]).join("")}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{user.name}</p>
+                <p className="text-xs text-sidebar-foreground/50 truncate">
+                  {user.role === "sa" ? "Student Assistant" : user.ciId || "Clinical Instructor"}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium truncate">{currentUser.name}</p>
-              <p className="text-xs text-sidebar-foreground/50 truncate">{currentUser.role === "sa" ? "Student Assistant" : "Clinical Instructor"}</p>
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="w-full justify-start h-8 text-sidebar-foreground/70 hover:text-sidebar-foreground"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
           </div>
         )}
         <button
