@@ -36,6 +36,7 @@ export default function RleGuide() {
     topics: "",
     equipment: "",
   });
+  const [selectedEquipmentItems, setSelectedEquipmentItems] = useState<string[]>([]);
 
   const filtered = guides.filter((guide) => {
     const matchesSearch =
@@ -56,6 +57,7 @@ export default function RleGuide() {
         topics: guide.topics.join(", "),
         equipment: guide.equipment?.join(", ") || "",
       });
+      setSelectedEquipmentItems(guide.equipment || []);
     } else {
       setEditingGuide(null);
       setFormData({
@@ -65,6 +67,7 @@ export default function RleGuide() {
         topics: "",
         equipment: "",
       });
+      setSelectedEquipmentItems([]);
     }
     setIsDialogOpen(true);
   };
@@ -77,7 +80,7 @@ export default function RleGuide() {
   const handleSubmit = async () => {
     try {
       const topicsArray = formData.topics.split(",").map((t) => t.trim()).filter(Boolean);
-      const equipmentArray = formData.equipment.split(",").map((e) => e.trim()).filter(Boolean);
+      const equipmentArray = selectedEquipmentItems;
       
       if (editingGuide) {
         await updateGuide(editingGuide.id, {
@@ -330,13 +333,33 @@ export default function RleGuide() {
               />
             </div>
             <div>
-              <Label htmlFor="equipment">Equipment (comma-separated)</Label>
-              <Input
-                id="equipment"
-                value={formData.equipment}
-                onChange={(e) => setFormData({ ...formData, equipment: e.target.value })}
-                placeholder="e.g., Stethoscope, Blood Pressure Apparatus, Thermometer"
-              />
+              <Label>Suggested Equipment</Label>
+              <p className="text-xs text-muted-foreground mb-2">Select from existing inventory items</p>
+              <div className="max-h-48 overflow-y-auto border rounded-md p-3 space-y-2">
+                {items.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No inventory items available</p>
+                ) : (
+                  items.map((item) => (
+                    <label key={item.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
+                      <input
+                        type="checkbox"
+                        checked={selectedEquipmentItems.includes(item.name)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedEquipmentItems([...selectedEquipmentItems, item.name]);
+                          } else {
+                            setSelectedEquipmentItems(selectedEquipmentItems.filter(name => name !== item.name));
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{item.name}</span>
+                      <span className="text-xs text-muted-foreground ml-auto">({item.stock_available} available)</span>
+                    </label>
+                  ))
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">{selectedEquipmentItems.length} item(s) selected</p>
             </div>
           </div>
           <DialogFooter>
