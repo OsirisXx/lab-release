@@ -212,8 +212,7 @@ export default function RleGuide() {
                   <div className="space-y-2">
                     {guide.equipment.map((equipmentName, idx) => {
                       const inventoryItem = items.find(item => 
-                        item.name.toLowerCase().includes(equipmentName.toLowerCase()) ||
-                        equipmentName.toLowerCase().includes(item.name.toLowerCase())
+                        item.name.toLowerCase() === equipmentName.toLowerCase()
                       );
                       const isAvailable = inventoryItem && inventoryItem.stock_available > 0;
                       const isLowStock = inventoryItem && inventoryItem.stock_available > 0 && inventoryItem.stock_available < 5;
