@@ -32,7 +32,7 @@ BEGIN
   DELETE FROM auth.users WHERE id = user_id_to_delete;
 
   -- Create audit log entry
-  INSERT INTO audit_logs (user_id, action, details)
+  INSERT INTO audit_logs (user_id, action, details, category)
   VALUES (
     requesting_user_id,
     'delete_user',
@@ -40,7 +40,8 @@ BEGIN
       'deleted_user_id', user_id_to_delete,
       'deleted_user_email', deleted_user_email,
       'deleted_user_name', deleted_user_name
-    )
+    ),
+    'user_management'
   );
 END;
 $$;
