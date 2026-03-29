@@ -7,6 +7,7 @@ export interface RleGuide {
   title: string;
   description: string;
   topics: string[];
+  equipment: string[];
   created_at: string;
   updated_at: string;
   created_by: string | null;
