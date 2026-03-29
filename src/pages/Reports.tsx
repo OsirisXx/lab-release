@@ -5,6 +5,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { useInventory } from "@/hooks/useInventory";
 import { useTransactions } from "@/hooks/useTransactions";
 import { toast } from "sonner";
+import * as XLSX from 'xlsx-js-style';
 
 export default function Reports() {
   const [period, setPeriod] = useState<"daily" | "weekly" | "monthly">("weekly");
@@ -22,7 +23,50 @@ export default function Reports() {
         return a.name.localeCompare(b.name);
       });
 
-      const inventoryCsv = [
+      // Calculate metrics
+      const totalMaintainingStock = items.reduce((sum, item) => sum + item.maintaining_stock, 0);
+      const totalAvailableStock = items.reduce((sum, item) => sum + item.stock_available, 0);
+      const totalBorrowedItems = totalMaintainingStock - totalAvailableStock;
+
+      // Sort transactions by date (most recent first)
+      const sortedTransactions = [...transactions].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      // Filter low stock and out of stock items
+      const lowStockItems = items.filter(item => item.stock_available > 0 && item.stock_available < 2);
+      const outOfStockItems = items.filter(item => item.stock_available === 0);
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+
+      // SUMMARY SHEET
+      const summaryData = [
+        ['Summary Report', `Generated: ${new Date().toLocaleString()}`],
+        [],
+        ['Metric', 'Value'],
+        ['Total Items', items.length],
+        ['Maintaining Stock', totalMaintainingStock],
+        ['Available Stock', totalAvailableStock],
+        ['Borrowed Items', totalBorrowedItems],
+        ['Active Borrows', transactions.filter(t => t.status === 'approved').length],
+        ['Pending Requests', transactions.filter(t => t.status === 'pending').length],
+        ['Completed Returns', transactions.filter(t => t.status === 'returned').length],
+        ['Overdue Items', transactions.filter(t => t.status === 'overdue').length],
+        ['Equipment Items', items.filter(i => i.category === 'non-consumable').length],
+        ['Consumable Items', items.filter(i => i.category === 'consumable').length]
+      ];
+      const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+      
+      // Style summary sheet header
+      summaryWs['A1'].s = { fill: { fgColor: { rgb: "4472C4" } }, font: { bold: true, color: { rgb: "FFFFFF" } } };
+      summaryWs['A3'].s = { fill: { fgColor: { rgb: "D9E1F2" } }, font: { bold: true } };
+      summaryWs['B3'].s = { fill: { fgColor: { rgb: "D9E1F2" } }, font: { bold: true } };
+      
+      XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+
+      // INVENTORY SHEET
+      const inventoryData = [
         ['Inventory Report', `Generated: ${new Date().toLocaleString()}`],
         [],
         ['Item Code', 'Item Name', 'Category', 'Location', 'Maintaining Stock', 'Available', 'Borrowed', 'Active Borrow', 'Condition'],
@@ -34,17 +78,23 @@ export default function Reports() {
           item.maintaining_stock,
           item.stock_available,
           item.maintaining_stock - item.stock_available,
-          0, // Active Borrow - placeholder for now
+          0,
           item.condition
         ])
-      ].map(row => row.join(',')).join('\n');
+      ];
+      const inventoryWs = XLSX.utils.aoa_to_sheet(inventoryData);
+      
+      // Style inventory sheet header
+      inventoryWs['A1'].s = { fill: { fgColor: { rgb: "70AD47" } }, font: { bold: true, color: { rgb: "FFFFFF" } } };
+      const invHeaders = ['A3', 'B3', 'C3', 'D3', 'E3', 'F3', 'G3', 'H3', 'I3'];
+      invHeaders.forEach(cell => {
+        if (inventoryWs[cell]) inventoryWs[cell].s = { fill: { fgColor: { rgb: "E2EFDA" } }, font: { bold: true } };
+      });
+      
+      XLSX.utils.book_append_sheet(wb, inventoryWs, 'Inventory');
 
-      // Sort transactions by date (most recent first)
-      const sortedTransactions = [...transactions].sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-
-      const transactionCsv = [
+      // TRANSACTION SHEET
+      const transactionData = [
         ['Transaction Report', `Generated: ${new Date().toLocaleString()}`],
         [],
         ['Date', 'Time', 'User Name', 'CI ID', 'Item Name', 'Action', 'Quantity', 'Status'],
@@ -61,43 +111,68 @@ export default function Reports() {
             tx.status.charAt(0).toUpperCase() + tx.status.slice(1)
           ];
         })
-      ].map(row => row.join(',')).join('\n');
-
-      const totalMaintainingStock = items.reduce((sum, item) => sum + item.maintaining_stock, 0);
-      const totalAvailableStock = items.reduce((sum, item) => sum + item.stock_available, 0);
-      const totalBorrowedItems = totalMaintainingStock - totalAvailableStock;
-
-      const summaryCsv = [
-        ['Summary Report', `Generated: ${new Date().toLocaleString()}`],
-        [],
-        ['Metric', 'Value'],
-        ['Total Items', items.length],
-        ['Maintaining Stock', totalMaintainingStock],
-        ['Available Stock', totalAvailableStock],
-        ['Borrowed Items', totalBorrowedItems],
-        ['Active Borrows', transactions.filter(t => t.status === 'approved').length],
-        ['Pending Requests', transactions.filter(t => t.status === 'pending').length],
-        ['Completed Returns', transactions.filter(t => t.status === 'returned').length],
-        ['Overdue Items', transactions.filter(t => t.status === 'overdue').length],
-        ['Equipment Items', items.filter(i => i.category === 'non-consumable').length],
-        ['Consumable Items', items.filter(i => i.category === 'consumable').length]
-      ].map(row => row.join(',')).join('\n');
-
-      // Combine all sections with clear separators
-      const fullReport = `${summaryCsv}\n\n\n${inventoryCsv}\n\n\n${transactionCsv}`;
-
-      const blob = new Blob([fullReport], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
+      ];
+      const transactionWs = XLSX.utils.aoa_to_sheet(transactionData);
       
-      link.setAttribute('href', url);
-      link.setAttribute('download', `LabTrack_Report_${timestamp}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Style transaction sheet header
+      transactionWs['A1'].s = { fill: { fgColor: { rgb: "FFC000" } }, font: { bold: true, color: { rgb: "FFFFFF" } } };
+      const txHeaders = ['A3', 'B3', 'C3', 'D3', 'E3', 'F3', 'G3', 'H3'];
+      txHeaders.forEach(cell => {
+        if (transactionWs[cell]) transactionWs[cell].s = { fill: { fgColor: { rgb: "FFF2CC" } }, font: { bold: true } };
+      });
+      
+      XLSX.utils.book_append_sheet(wb, transactionWs, 'Transactions');
 
-      toast.success('Report exported successfully with 3 sections: Summary, Inventory (sorted by location), and Transactions');
+      // LOW STOCK & OUT OF STOCK SHEET
+      const alertData = [
+        ['Low Stock & Out of Stock Items', `Generated: ${new Date().toLocaleString()}`],
+        [],
+        ['LOW STOCK ITEMS (Available < 2)'],
+        ['Item Code', 'Item Name', 'Location', 'Maintaining Stock', 'Available', 'Status'],
+        ...lowStockItems.map(item => [
+          item.item_code || 'N/A',
+          item.name,
+          item.location,
+          item.maintaining_stock,
+          item.stock_available,
+          'Low Stock'
+        ]),
+        [],
+        ['OUT OF STOCK ITEMS (Available = 0)'],
+        ['Item Code', 'Item Name', 'Location', 'Maintaining Stock', 'Available', 'Status'],
+        ...outOfStockItems.map(item => [
+          item.item_code || 'N/A',
+          item.name,
+          item.location,
+          item.maintaining_stock,
+          item.stock_available,
+          'Out of Stock'
+        ])
+      ];
+      const alertWs = XLSX.utils.aoa_to_sheet(alertData);
+      
+      // Style alert sheet
+      alertWs['A1'].s = { fill: { fgColor: { rgb: "C00000" } }, font: { bold: true, color: { rgb: "FFFFFF" } } };
+      alertWs['A3'].s = { fill: { fgColor: { rgb: "FFC000" } }, font: { bold: true } };
+      const lowStockRow = 4;
+      const lowStockHeaders = ['A4', 'B4', 'C4', 'D4', 'E4', 'F4'];
+      lowStockHeaders.forEach(cell => {
+        if (alertWs[cell]) alertWs[cell].s = { fill: { fgColor: { rgb: "FFF2CC" } }, font: { bold: true } };
+      });
+      
+      const outOfStockHeaderRow = 5 + lowStockItems.length + 1;
+      alertWs[`A${outOfStockHeaderRow}`].s = { fill: { fgColor: { rgb: "C00000" } }, font: { bold: true, color: { rgb: "FFFFFF" } } };
+      const outOfStockHeaders = [`A${outOfStockHeaderRow + 1}`, `B${outOfStockHeaderRow + 1}`, `C${outOfStockHeaderRow + 1}`, `D${outOfStockHeaderRow + 1}`, `E${outOfStockHeaderRow + 1}`, `F${outOfStockHeaderRow + 1}`];
+      outOfStockHeaders.forEach(cell => {
+        if (alertWs[cell]) alertWs[cell].s = { fill: { fgColor: { rgb: "FFE6E6" } }, font: { bold: true } };
+      });
+      
+      XLSX.utils.book_append_sheet(wb, alertWs, 'Low & Out of Stock');
+
+      // Write file
+      XLSX.writeFile(wb, `LabTrack_Report_${timestamp}.xlsx`);
+
+      toast.success('Excel report exported with color highlights and separate Low/Out of Stock sheet!');
     } catch (error) {
       toast.error('Failed to export report');
       console.error('Export error:', error);
