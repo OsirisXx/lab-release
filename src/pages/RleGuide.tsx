@@ -37,6 +37,7 @@ export default function RleGuide() {
     equipment: "",
   });
   const [selectedEquipmentItems, setSelectedEquipmentItems] = useState<string[]>([]);
+  const [equipmentSearch, setEquipmentSearch] = useState("");
 
   const filtered = guides.filter((guide) => {
     const matchesSearch =
@@ -75,6 +76,7 @@ export default function RleGuide() {
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     setEditingGuide(null);
+    setEquipmentSearch("");
   };
 
   const handleSubmit = async () => {
@@ -335,11 +337,22 @@ export default function RleGuide() {
             <div>
               <Label>Suggested Equipment</Label>
               <p className="text-xs text-muted-foreground mb-2">Select from existing inventory items</p>
+              <div className="relative mb-2">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search equipment..."
+                  value={equipmentSearch}
+                  onChange={(e) => setEquipmentSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
               <div className="max-h-48 overflow-y-auto border rounded-md p-3 space-y-2">
                 {items.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No inventory items available</p>
                 ) : (
-                  items.map((item) => (
+                  items
+                    .filter(item => item.name.toLowerCase().includes(equipmentSearch.toLowerCase()))
+                    .map((item) => (
                     <label key={item.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
                       <input
                         type="checkbox"
