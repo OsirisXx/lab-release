@@ -41,7 +41,7 @@ BEGIN
       'deleted_user_email', deleted_user_email,
       'deleted_user_name', deleted_user_name
     ),
-    'user_management'
+    'user'
   );
 END;
 $$;
