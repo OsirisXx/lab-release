@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { BookOpen, Search, FileText, Plus, Edit2, Trash2, X, Loader2 } from "lucide-react";
+import { BookOpen, Search, FileText, Plus, Edit2, Trash2, X, Loader2, ShoppingCart, Package, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRleGuides } from "@/hooks/useRleGuides";
 import { useAuth } from "@/contexts/AuthContext";
+import { useInventory } from "@/hooks/useInventory";
+import { useTransactions } from "@/hooks/useTransactions";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -17,16 +19,22 @@ import { Textarea } from "@/components/ui/textarea";
 
 export default function RleGuide() {
   const { guides, loading, createGuide, updateGuide, deleteGuide } = useRleGuides();
+  const { items } = useInventory();
+  const { createBorrowRequest } = useTransactions();
   const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isBorrowDialogOpen, setIsBorrowDialogOpen] = useState(false);
   const [editingGuide, setEditingGuide] = useState<any>(null);
+  const [selectedEquipment, setSelectedEquipment] = useState<any>(null);
+  const [borrowQuantity, setBorrowQuantity] = useState(1);
   const [formData, setFormData] = useState({
     year_level: "1st Year" as any,
     title: "",
     description: "",
     topics: "",
+    equipment: "",
   });
 
   const filtered = guides.filter((guide) => {
@@ -46,6 +54,7 @@ export default function RleGuide() {
         title: guide.title,
         description: guide.description,
         topics: guide.topics.join(", "),
+        equipment: guide.equipment?.join(", ") || "",
       });
     } else {
       setEditingGuide(null);
@@ -54,6 +63,7 @@ export default function RleGuide() {
         title: "",
         description: "",
         topics: "",
+        equipment: "",
       });
     }
     setIsDialogOpen(true);
@@ -67,6 +77,7 @@ export default function RleGuide() {
   const handleSubmit = async () => {
     try {
       const topicsArray = formData.topics.split(",").map((t) => t.trim()).filter(Boolean);
+      const equipmentArray = formData.equipment.split(",").map((e) => e.trim()).filter(Boolean);
       
       if (editingGuide) {
         await updateGuide(editingGuide.id, {
@@ -74,6 +85,7 @@ export default function RleGuide() {
           title: formData.title,
           description: formData.description,
           topics: topicsArray,
+          equipment: equipmentArray,
         });
         toast.success("Guide updated successfully");
       } else {
@@ -82,6 +94,7 @@ export default function RleGuide() {
           title: formData.title,
           description: formData.description,
           topics: topicsArray,
+          equipment: equipmentArray,
         });
         toast.success("Guide created successfully");
       }
@@ -188,6 +201,67 @@ export default function RleGuide() {
                 </div>
               </div>
 
+              {guide.equipment && guide.equipment.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Suggested Equipment</p>
+                  <div className="space-y-2">
+                    {guide.equipment.map((equipmentName, idx) => {
+                      const inventoryItem = items.find(item => 
+                        item.name.toLowerCase().includes(equipmentName.toLowerCase()) ||
+                        equipmentName.toLowerCase().includes(item.name.toLowerCase())
+                      );
+                      const isAvailable = inventoryItem && inventoryItem.stock_available > 0;
+                      const isLowStock = inventoryItem && inventoryItem.stock_available > 0 && inventoryItem.stock_available < 5;
+                      
+                      return (
+                        <div key={`${guide.id}-${equipmentName}-${idx}`} className="flex items-center justify-between p-2 rounded-md bg-muted/50 hover:bg-muted transition-colors">
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm">{equipmentName}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {inventoryItem ? (
+                              <>
+                                {isAvailable ? (
+                                  <span className={`text-xs px-2 py-1 rounded-md flex items-center gap-1 ${
+                                    isLowStock ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'
+                                  }`}>
+                                    {isLowStock ? <AlertCircle className="h-3 w-3" /> : <CheckCircle className="h-3 w-3" />}
+                                    {inventoryItem.stock_available} available
+                                  </span>
+                                ) : (
+                                  <span className="text-xs px-2 py-1 rounded-md bg-destructive/10 text-destructive flex items-center gap-1">
+                                    <XCircle className="h-3 w-3" />
+                                    Out of stock
+                                  </span>
+                                )}
+                                {user?.role === 'ci' && isAvailable && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs"
+                                    onClick={() => {
+                                      setSelectedEquipment(inventoryItem);
+                                      setBorrowQuantity(1);
+                                      setIsBorrowDialogOpen(true);
+                                    }}
+                                  >
+                                    <ShoppingCart className="h-3 w-3 mr-1" />
+                                    Borrow
+                                  </Button>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Not in inventory</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-between pt-4 border-t">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <FileText className="h-3.5 w-3.5" />
@@ -255,10 +329,68 @@ export default function RleGuide() {
                 placeholder="e.g., Vital Signs, Patient Assessment, Basic Life Support"
               />
             </div>
+            <div>
+              <Label htmlFor="equipment">Equipment (comma-separated)</Label>
+              <Input
+                id="equipment"
+                value={formData.equipment}
+                onChange={(e) => setFormData({ ...formData, equipment: e.target.value })}
+                placeholder="e.g., Stethoscope, Blood Pressure Apparatus, Thermometer"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseDialog}>Cancel</Button>
             <Button onClick={handleSubmit}>{editingGuide ? "Update" : "Create"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Borrow Dialog */}
+      <Dialog open={isBorrowDialogOpen} onOpenChange={setIsBorrowDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Borrow Equipment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Item</Label>
+              <p className="text-sm font-medium mt-1">{selectedEquipment?.name}</p>
+            </div>
+            <div>
+              <Label>Available Stock</Label>
+              <p className="text-sm text-muted-foreground mt-1">{selectedEquipment?.stock_available} units</p>
+            </div>
+            <div>
+              <Label htmlFor="borrow_quantity">Quantity to Borrow</Label>
+              <Input
+                id="borrow_quantity"
+                type="number"
+                min="1"
+                max={selectedEquipment?.stock_available || 1}
+                value={borrowQuantity}
+                onChange={(e) => setBorrowQuantity(parseInt(e.target.value) || 1)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBorrowDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                try {
+                  if (!selectedEquipment) return;
+                  await createBorrowRequest(selectedEquipment.id, borrowQuantity);
+                  toast.success('Borrow request submitted successfully');
+                  setIsBorrowDialogOpen(false);
+                  setSelectedEquipment(null);
+                  setBorrowQuantity(1);
+                } catch (error: any) {
+                  toast.error(error.message || 'Failed to submit borrow request');
+                }
+              }}
+            >
+              Submit Request
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
