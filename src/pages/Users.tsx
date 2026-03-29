@@ -1,12 +1,28 @@
 import { useState } from "react";
-import { Search, Mail, UserCheck, UserX, Loader2, Shield } from "lucide-react";
+import { Search, Mail, UserCheck, UserX, Loader2, Shield, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useUsers } from "@/hooks/useUsers";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 export default function Users() {
-  const { users, loading } = useUsers();
+  const { users, loading, deleteUser } = useUsers();
+  const { user: currentUser } = useAuth();
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [userToDelete, setUserToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const filtered = users.filter((user) => {
     const matchesSearch = user.name.toLowerCase().includes(search.toLowerCase()) || user.email.toLowerCase().includes(search.toLowerCase());
@@ -89,9 +105,21 @@ export default function Users() {
                     </td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">{user.ci_id || "—"}</td>
                     <td className="px-6 py-4 text-right">
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(user.created_at).toLocaleDateString()}
-                      </span>
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(user.created_at).toLocaleDateString()}
+                        </span>
+                        {currentUser?.role === "sa" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setUserToDelete({ id: user.id, name: user.name })}
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -116,7 +144,7 @@ export default function Users() {
           <div className="divide-y max-h-[600px] overflow-y-auto">
             {saUsers.map((user) => (
               <div key={user.id} className="px-5 py-4 hover:bg-muted/30 transition-colors">
-                <div className="flex items-start justify-between">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-secondary-foreground text-sm font-bold">
                       {user.name.split(" ").map((n) => n[0]).join("")}
@@ -130,6 +158,16 @@ export default function Users() {
                       <p className="text-xs font-medium text-secondary-foreground mt-1">ID: {user.id}</p>
                     </div>
                   </div>
+                  {currentUser?.role === "sa" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setUserToDelete({ id: user.id, name: user.name })}
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
@@ -142,6 +180,40 @@ export default function Users() {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {userToDelete?.name}? This action cannot be undone.
+              All related data (transactions, attendance records) will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (!userToDelete) return;
+                setIsDeleting(true);
+                try {
+                  await deleteUser(userToDelete.id);
+                  toast.success(`User ${userToDelete.name} deleted successfully`);
+                  setUserToDelete(null);
+                } catch (error: any) {
+                  toast.error(error.message || "Failed to delete user");
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -11,7 +11,7 @@ export default function Locations() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
-    stock_total: 0,
+    maintaining_stock: 0,
     stock_available: 0,
     condition: "Good" as "Good" | "Defective" | "Mixed",
   });
@@ -32,7 +32,7 @@ export default function Locations() {
     setEditingId(item.id);
     setEditForm({
       name: item.name,
-      stock_total: item.stock_total,
+      maintaining_stock: item.maintaining_stock,
       stock_available: item.stock_available,
       condition: item.condition as any,
     });
@@ -71,7 +71,7 @@ export default function Locations() {
         {locations.map((location, idx) => {
           const locationItems = groupedByLocation[location];
           const totalItems = locationItems.length;
-          const totalStock = locationItems.reduce((sum, item) => sum + item.stock_total, 0);
+          const totalStock = locationItems.reduce((sum, item) => sum + item.maintaining_stock, 0);
           const availableStock = locationItems.reduce((sum, item) => sum + item.stock_available, 0);
 
           return (
@@ -134,12 +134,12 @@ export default function Locations() {
                             {isEditing ? (
                               <Input
                                 type="number"
-                                value={editForm.stock_total}
-                                onChange={(e) => setEditForm({ ...editForm, stock_total: parseInt(e.target.value) || 0 })}
+                                value={editForm.maintaining_stock}
+                                onChange={(e) => setEditForm({ ...editForm, maintaining_stock: parseInt(e.target.value) || 0 })}
                                 className="h-8 w-20 mx-auto text-center"
                               />
                             ) : (
-                              <span className="tabular-nums font-medium">{item.stock_total}</span>
+                              <span className="tabular-nums font-medium">{item.maintaining_stock}</span>
                             )}
                           </td>
                           <td className="px-6 py-4 text-center">

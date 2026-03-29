@@ -8,7 +8,7 @@ export interface InventoryItem {
   name: string;
   category: "consumable" | "non-consumable";
   unit: string;
-  stock_total: number;
+  maintaining_stock: number;
   stock_available: number;
   condition: "Good" | "Defective" | "Mixed" | "Expired";
   location: string;
@@ -70,7 +70,7 @@ export function useInventory() {
     await supabase.from("audit_logs").insert({
       user_id: user.id,
       action: "Added Inventory Item",
-      details: `New item: ${item.name} (Qty: ${item.stock_total})`,
+      details: `New item: ${item.name} (Qty: ${item.maintaining_stock})`,
       category: "inventory",
     });
 

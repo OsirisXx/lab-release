@@ -17,7 +17,7 @@ export default function Dashboard() {
   }
 
   const totalItems = items.length;
-  const lowStock = items.filter((i) => i.stock_available / i.stock_total < 0.3).length;
+  const lowStock = items.filter((i) => i.stock_available / i.maintaining_stock < 0.3).length;
   const pendingTx = transactions.filter((t) => t.status === "pending").length;
   const overdueTx = transactions.filter((t) => t.status === "overdue").length;
 
@@ -70,15 +70,15 @@ export default function Dashboard() {
           </div>
           <div className="divide-y">
             {items
-              .filter((i) => i.stock_available / i.stock_total < 0.5)
+              .filter((i) => i.stock_available / i.maintaining_stock < 0.5)
               .slice(0, 6)
               .map((item) => {
-                const pct = Math.round((item.stock_available / item.stock_total) * 100);
+                const pct = Math.round((item.stock_available / item.maintaining_stock) * 100);
                 return (
                   <div key={item.id} className="px-5 py-3.5">
                     <div className="flex justify-between items-center mb-1.5">
                       <p className="text-sm font-medium truncate">{item.name}</p>
-                      <span className="text-xs tabular-nums text-muted-foreground">{item.stock_available}/{item.stock_total}</span>
+                      <span className="text-xs tabular-nums text-muted-foreground">{item.stock_available}/{item.maintaining_stock}</span>
                     </div>
                     <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                       <div

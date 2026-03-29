@@ -15,46 +15,66 @@ export default function Reports() {
     try {
       const timestamp = new Date().toISOString().split('T')[0];
       
+      // Sort items by location alphabetically, then by name within each location
+      const sortedItems = [...items].sort((a, b) => {
+        const locationCompare = a.location.localeCompare(b.location);
+        if (locationCompare !== 0) return locationCompare;
+        return a.name.localeCompare(b.name);
+      });
+
       const inventoryCsv = [
         ['Inventory Report', `Generated: ${new Date().toLocaleString()}`],
         [],
-        ['Item Name', 'Category', 'Location', 'Total Stock', 'Available', 'Borrowed', 'Condition'],
-        ...items.map(item => [
+        ['Item Code', 'Item Name', 'Category', 'Location', 'Maintaining Stock', 'Available', 'Borrowed', 'Active Borrow', 'Condition'],
+        ...sortedItems.map(item => [
+          item.item_code || 'N/A',
           item.name,
           item.category === 'consumable' ? 'Consumable' : 'Equipment',
           item.location,
-          item.stock_total,
+          item.maintaining_stock,
           item.stock_available,
-          item.stock_total - item.stock_available,
+          item.maintaining_stock - item.stock_available,
+          0, // Active Borrow - placeholder for now
           item.condition
         ])
       ].map(row => row.join(',')).join('\n');
 
+      // Sort transactions by date (most recent first)
+      const sortedTransactions = [...transactions].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
       const transactionCsv = [
         ['Transaction Report', `Generated: ${new Date().toLocaleString()}`],
         [],
-        ['Transaction ID', 'User', 'Item', 'Type', 'Status', 'Quantity', 'Borrow Date', 'Due Date', 'Return Date'],
-        ...transactions.map(tx => [
-          tx.id.slice(0, 8),
-          tx.user_profiles?.name || 'Unknown',
-          tx.inventory_items?.name || 'Unknown',
-          tx.type,
-          tx.status,
-          tx.quantity,
-          tx.borrow_date,
-          tx.due_date,
-          tx.return_date || 'N/A'
-        ])
+        ['Date', 'Time', 'User Name', 'CI ID', 'Item Name', 'Action', 'Quantity', 'Status'],
+        ...sortedTransactions.map(tx => {
+          const date = new Date(tx.created_at);
+          return [
+            date.toLocaleDateString(),
+            date.toLocaleTimeString(),
+            tx.user_profiles?.name || 'Unknown',
+            tx.user_profiles?.ci_id || 'N/A',
+            tx.inventory_items?.name || 'Unknown',
+            tx.type === 'borrow' ? 'Borrow' : 'Return',
+            tx.quantity,
+            tx.status.charAt(0).toUpperCase() + tx.status.slice(1)
+          ];
+        })
       ].map(row => row.join(',')).join('\n');
+
+      const totalMaintainingStock = items.reduce((sum, item) => sum + item.maintaining_stock, 0);
+      const totalAvailableStock = items.reduce((sum, item) => sum + item.stock_available, 0);
+      const totalBorrowedItems = totalMaintainingStock - totalAvailableStock;
 
       const summaryCsv = [
         ['Summary Report', `Generated: ${new Date().toLocaleString()}`],
         [],
         ['Metric', 'Value'],
         ['Total Items', items.length],
-        ['Total Stock', items.reduce((sum, item) => sum + item.stock_total, 0)],
-        ['Available Stock', items.reduce((sum, item) => sum + item.stock_available, 0)],
-        ['Borrowed Items', items.reduce((sum, item) => sum + item.stock_total, 0) - items.reduce((sum, item) => sum + item.stock_available, 0)],
+        ['Maintaining Stock', totalMaintainingStock],
+        ['Available Stock', totalAvailableStock],
+        ['Borrowed Items', totalBorrowedItems],
         ['Active Borrows', transactions.filter(t => t.status === 'approved').length],
         ['Pending Requests', transactions.filter(t => t.status === 'pending').length],
         ['Completed Returns', transactions.filter(t => t.status === 'returned').length],
@@ -63,6 +83,7 @@ export default function Reports() {
         ['Consumable Items', items.filter(i => i.category === 'consumable').length]
       ].map(row => row.join(',')).join('\n');
 
+      // Combine all sections with clear separators
       const fullReport = `${summaryCsv}\n\n\n${inventoryCsv}\n\n\n${transactionCsv}`;
 
       const blob = new Blob([fullReport], { type: 'text/csv;charset=utf-8;' });
@@ -76,7 +97,7 @@ export default function Reports() {
       link.click();
       document.body.removeChild(link);
 
-      toast.success('Report exported successfully');
+      toast.success('Report exported successfully with 3 sections: Summary, Inventory (sorted by location), and Transactions');
     } catch (error) {
       toast.error('Failed to export report');
       console.error('Export error:', error);
@@ -92,7 +113,7 @@ export default function Reports() {
   }
 
   const totalItems = items.length;
-  const totalStock = items.reduce((sum, item) => sum + item.stock_total, 0);
+  const totalStock = items.reduce((sum, item) => sum + item.maintaining_stock, 0);
   const availableStock = items.reduce((sum, item) => sum + item.stock_available, 0);
   const borrowedItems = totalStock - availableStock;
 
@@ -106,7 +127,7 @@ export default function Reports() {
   const topBorrowedItems = items
     .map((item) => ({
       ...item,
-      borrowed: item.stock_total - item.stock_available,
+      borrowed: item.maintaining_stock - item.stock_available,
     }))
     .sort((a, b) => b.borrowed - a.borrowed)
     .slice(0, 5);
@@ -159,7 +180,7 @@ export default function Reports() {
           </div>
           <div className="p-5 space-y-4">
             {topBorrowedItems.map((item, idx) => {
-              const pct = item.stock_total > 0 ? (item.borrowed / item.stock_total) * 100 : 0;
+              const pct = item.maintaining_stock > 0 ? (item.borrowed / item.maintaining_stock) * 100 : 0;
               return (
                 <div key={item.id}>
                   <div className="flex items-center justify-between mb-2">
@@ -173,7 +194,7 @@ export default function Reports() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium tabular-nums">{item.borrowed}/{item.stock_total}</p>
+                      <p className="text-sm font-medium tabular-nums">{item.borrowed}/{item.maintaining_stock}</p>
                       <p className="text-xs text-muted-foreground">{pct.toFixed(0)}% borrowed</p>
                     </div>
                   </div>

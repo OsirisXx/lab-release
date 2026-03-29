@@ -43,7 +43,7 @@ export default function Inventory() {
     name: "",
     category: "non-consumable" as "consumable" | "non-consumable",
     unit: "pc",
-    stock_total: 0,
+    maintaining_stock: 0,
     stock_available: 0,
     condition: "Good" as "Good" | "Defective" | "Mixed" | "Expired",
     location: "",
@@ -56,7 +56,7 @@ export default function Inventory() {
     name: "",
     category: "non-consumable" as "consumable" | "non-consumable",
     unit: "pc",
-    stock_total: 0,
+    maintaining_stock: 0,
     stock_available: 0,
     condition: "Good" as "Good" | "Defective" | "Mixed" | "Expired",
     location: "",
@@ -121,7 +121,7 @@ export default function Inventory() {
               <th className="text-left px-5 py-3 font-medium text-muted-foreground">Item</th>
               <th className="text-left px-5 py-3 font-medium text-muted-foreground">Category</th>
               <th className="text-left px-5 py-3 font-medium text-muted-foreground">Location</th>
-              <th className="text-center px-5 py-3 font-medium text-muted-foreground">Stock</th>
+              <th className="text-center px-5 py-3 font-medium text-muted-foreground">Maintaining Stock</th>
               <th className="text-center px-5 py-3 font-medium text-muted-foreground">Available</th>
               <th className="text-center px-5 py-3 font-medium text-muted-foreground">Condition</th>
               <th className="text-right px-5 py-3 font-medium text-muted-foreground">Actions</th>
@@ -129,7 +129,7 @@ export default function Inventory() {
           </thead>
           <tbody className="divide-y">
             {filtered.map((item) => {
-              const pct = Math.round((item.stock_available / item.stock_total) * 100);
+              const pct = Math.round((item.stock_available / item.maintaining_stock) * 100);
               return (
                 <tr key={item.id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-5 py-3.5">
@@ -149,7 +149,7 @@ export default function Inventory() {
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-muted-foreground">{item.location}</td>
-                  <td className="px-5 py-3.5 text-center tabular-nums">{item.stock_total}</td>
+                  <td className="px-5 py-3.5 text-center tabular-nums">{item.maintaining_stock}</td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center justify-center gap-2">
                       <span className="tabular-nums font-medium">{item.stock_available}</span>
@@ -194,7 +194,7 @@ export default function Inventory() {
                                 name: item.name,
                                 category: item.category,
                                 unit: item.unit,
-                                stock_total: item.stock_total,
+                                maintaining_stock: item.maintaining_stock,
                                 stock_available: item.stock_available,
                                 condition: item.condition,
                                 location: item.location,
@@ -299,12 +299,12 @@ export default function Inventory() {
               </select>
             </div>
             <div>
-              <Label htmlFor="stock_total">Total Stock</Label>
+              <Label htmlFor="maintaining_stock">Maintaining Stock</Label>
               <Input
-                id="stock_total"
+                id="maintaining_stock"
                 type="number"
-                value={addForm.stock_total}
-                onChange={(e) => setAddForm({ ...addForm, stock_total: parseInt(e.target.value) || 0 })}
+                value={addForm.maintaining_stock}
+                onChange={(e) => setAddForm({ ...addForm, maintaining_stock: parseInt(e.target.value) || 0 })}
               />
             </div>
             <div>
@@ -375,7 +375,7 @@ export default function Inventory() {
                   name: "",
                   category: "non-consumable",
                   unit: "pc",
-                  stock_total: 0,
+                  maintaining_stock: 0,
                   stock_available: 0,
                   condition: "Good",
                   location: "",
@@ -493,12 +493,12 @@ export default function Inventory() {
               </select>
             </div>
             <div>
-              <Label htmlFor="edit_stock_total">Total Stock</Label>
+              <Label htmlFor="edit_maintaining_stock">Maintaining Stock</Label>
               <Input
-                id="edit_stock_total"
+                id="edit_maintaining_stock"
                 type="number"
-                value={editForm.stock_total}
-                onChange={(e) => setEditForm({ ...editForm, stock_total: parseInt(e.target.value) || 0 })}
+                value={editForm.maintaining_stock}
+                onChange={(e) => setEditForm({ ...editForm, maintaining_stock: parseInt(e.target.value) || 0 })}
               />
             </div>
             <div>

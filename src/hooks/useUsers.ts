@@ -46,5 +46,19 @@ export function useUsers() {
     }
   };
 
-  return { users, loading, error, refetch: fetchUsers };
+  const deleteUser = async (userId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const { error: deleteError } = await supabase.rpc('delete_user', {
+      user_id_to_delete: userId,
+      requesting_user_id: user.id
+    });
+
+    if (deleteError) throw deleteError;
+    
+    await fetchUsers();
+  };
+
+  return { users, loading, error, refetch: fetchUsers, deleteUser };
 }
