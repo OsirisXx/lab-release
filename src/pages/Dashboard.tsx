@@ -2,7 +2,7 @@ import { Package, ArrowRightLeft, AlertTriangle, Clock, Loader2 } from "lucide-r
 import { StatCard } from "@/components/dashboard/StatCard";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useInventory } from "@/hooks/useInventory";
-import { useTransactions } from "@/hooks/useTransactions";
+import { useTransactions, isOverdue } from "@/hooks/useTransactions";
 
 export default function Dashboard() {
   const { items, loading: itemsLoading } = useInventory();
@@ -19,7 +19,7 @@ export default function Dashboard() {
   const totalItems = items.length;
   const lowStock = items.filter((i) => i.stock_available / i.maintaining_stock < 0.3).length;
   const pendingTx = transactions.filter((t) => t.status === "pending").length;
-  const overdueTx = transactions.filter((t) => t.status === "overdue").length;
+  const overdueTx = transactions.filter(isOverdue).length;
 
   return (
     <div className="space-y-8">

@@ -22,14 +22,14 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/", roles: ["sa", "ci"] },
-  { label: "Inventory", icon: Package, path: "/inventory", roles: ["sa", "ci"] },
+  { label: "Inventory/Borrowing", icon: Package, path: "/inventory", roles: ["sa", "ci"] },
   { label: "Transactions", icon: ArrowRightLeft, path: "/transactions", roles: ["sa", "ci"] },
   { label: "Reservations", icon: CalendarClock, path: "/reservations", roles: ["sa", "ci"] },
   { label: "Users", icon: Users, path: "/users", roles: ["sa"] },
   { label: "Attendance", icon: Clock, path: "/attendance", roles: ["sa"] },
   { label: "Reports", icon: BarChart3, path: "/reports", roles: ["sa"] },
   { label: "Audit Log", icon: ClipboardList, path: "/audit-log", roles: ["sa"] },
-  { label: "RLE Guide", icon: BookOpen, path: "/rle-guide", roles: ["sa", "ci"] },
+  { label: "RLE Procedure", icon: BookOpen, path: "/rle-guide", roles: ["sa", "ci"] },
 ];
 
 export function AppSidebar() {
@@ -60,8 +60,7 @@ export function AppSidebar() {
           <>
             <img src="/logo/schoollogo.png" alt="School Logo" className="h-9 w-9 object-contain" />
             <div className="flex-1 animate-fade-in">
-              <h1 className="font-bold text-sidebar-foreground text-sm">LabTrack</h1>
-              <p className="text-xs text-sidebar-foreground/50">CHS Inventory</p>
+              <h1 className="font-bold text-sidebar-foreground text-sm whitespace-nowrap">NUF - CHS Inventory</h1>
             </div>
             <img src="/logo/departmentlogo.png" alt="Department Logo" className="h-9 w-9 object-contain" />
           </>

@@ -3,7 +3,7 @@ import { BarChart3, TrendingUp, Package, ArrowRightLeft, AlertTriangle, Download
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { useInventory } from "@/hooks/useInventory";
-import { useTransactions } from "@/hooks/useTransactions";
+import { useTransactions, isOverdue } from "@/hooks/useTransactions";
 import { toast } from "sonner";
 import * as XLSX from 'xlsx-js-style';
 
@@ -37,12 +37,13 @@ export default function Reports() {
       const lowStockItems = items.filter(item => item.stock_available > 0 && item.stock_available < 2);
       const outOfStockItems = items.filter(item => item.stock_available === 0);
 
-      // Create workbook
+      // Create workbook with single sheet containing all sections
       const wb = XLSX.utils.book_new();
 
-      // SUMMARY SHEET
-      const summaryData = [
-        ['Summary Report', `Generated: ${new Date().toLocaleString()}`],
+      // Combine all data into one sheet with color-coded sections
+      const allData = [
+        // SUMMARY SECTION (Blue)
+        ['SUMMARY REPORT', `Generated: ${new Date().toLocaleString()}`],
         [],
         ['Metric', 'Value'],
         ['Total Items', items.length],
@@ -52,22 +53,13 @@ export default function Reports() {
         ['Active Borrows', transactions.filter(t => t.status === 'approved').length],
         ['Pending Requests', transactions.filter(t => t.status === 'pending').length],
         ['Completed Returns', transactions.filter(t => t.status === 'returned').length],
-        ['Overdue Items', transactions.filter(t => t.status === 'overdue').length],
+        ['Overdue Items', transactions.filter(isOverdue).length],
         ['Equipment Items', items.filter(i => i.category === 'non-consumable').length],
-        ['Consumable Items', items.filter(i => i.category === 'consumable').length]
-      ];
-      const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
-      
-      // Style summary sheet header
-      summaryWs['A1'].s = { fill: { fgColor: { rgb: "4472C4" } }, font: { bold: true, color: { rgb: "FFFFFF" } } };
-      summaryWs['A3'].s = { fill: { fgColor: { rgb: "D9E1F2" } }, font: { bold: true } };
-      summaryWs['B3'].s = { fill: { fgColor: { rgb: "D9E1F2" } }, font: { bold: true } };
-      
-      XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
-
-      // INVENTORY SHEET
-      const inventoryData = [
-        ['Inventory Report', `Generated: ${new Date().toLocaleString()}`],
+        ['Consumable Items', items.filter(i => i.category === 'consumable').length],
+        [],
+        [],
+        // INVENTORY SECTION (Green)
+        ['INVENTORY REPORT'],
         [],
         ['Item Code', 'Item Name', 'Category', 'Location', 'Maintaining Stock', 'Available', 'Borrowed', 'Active Borrow', 'Condition'],
         ...sortedItems.map(item => [
@@ -80,22 +72,11 @@ export default function Reports() {
           item.maintaining_stock - item.stock_available,
           0,
           item.condition
-        ])
-      ];
-      const inventoryWs = XLSX.utils.aoa_to_sheet(inventoryData);
-      
-      // Style inventory sheet header
-      inventoryWs['A1'].s = { fill: { fgColor: { rgb: "70AD47" } }, font: { bold: true, color: { rgb: "FFFFFF" } } };
-      const invHeaders = ['A3', 'B3', 'C3', 'D3', 'E3', 'F3', 'G3', 'H3', 'I3'];
-      invHeaders.forEach(cell => {
-        if (inventoryWs[cell]) inventoryWs[cell].s = { fill: { fgColor: { rgb: "E2EFDA" } }, font: { bold: true } };
-      });
-      
-      XLSX.utils.book_append_sheet(wb, inventoryWs, 'Inventory');
-
-      // TRANSACTION SHEET
-      const transactionData = [
-        ['Transaction Report', `Generated: ${new Date().toLocaleString()}`],
+        ]),
+        [],
+        [],
+        // TRANSACTION SECTION (Orange)
+        ['TRANSACTION REPORT'],
         [],
         ['Date', 'Time', 'User Name', 'CI ID', 'Item Name', 'Action', 'Quantity', 'Status'],
         ...sortedTransactions.map(tx => {
@@ -110,24 +91,12 @@ export default function Reports() {
             tx.quantity,
             tx.status.charAt(0).toUpperCase() + tx.status.slice(1)
           ];
-        })
-      ];
-      const transactionWs = XLSX.utils.aoa_to_sheet(transactionData);
-      
-      // Style transaction sheet header
-      transactionWs['A1'].s = { fill: { fgColor: { rgb: "FFC000" } }, font: { bold: true, color: { rgb: "FFFFFF" } } };
-      const txHeaders = ['A3', 'B3', 'C3', 'D3', 'E3', 'F3', 'G3', 'H3'];
-      txHeaders.forEach(cell => {
-        if (transactionWs[cell]) transactionWs[cell].s = { fill: { fgColor: { rgb: "FFF2CC" } }, font: { bold: true } };
-      });
-      
-      XLSX.utils.book_append_sheet(wb, transactionWs, 'Transactions');
-
-      // LOW STOCK & OUT OF STOCK SHEET
-      const alertData = [
-        ['Low Stock & Out of Stock Items', `Generated: ${new Date().toLocaleString()}`],
+        }),
         [],
+        [],
+        // LOW STOCK SECTION (Yellow)
         ['LOW STOCK ITEMS (Available < 2)'],
+        [],
         ['Item Code', 'Item Name', 'Location', 'Maintaining Stock', 'Available', 'Status'],
         ...lowStockItems.map(item => [
           item.item_code || 'N/A',
@@ -138,7 +107,10 @@ export default function Reports() {
           'Low Stock'
         ]),
         [],
+        [],
+        // OUT OF STOCK SECTION (Red)
         ['OUT OF STOCK ITEMS (Available = 0)'],
+        [],
         ['Item Code', 'Item Name', 'Location', 'Maintaining Stock', 'Available', 'Status'],
         ...outOfStockItems.map(item => [
           item.item_code || 'N/A',
@@ -149,30 +121,70 @@ export default function Reports() {
           'Out of Stock'
         ])
       ];
-      const alertWs = XLSX.utils.aoa_to_sheet(alertData);
-      
-      // Style alert sheet
-      alertWs['A1'].s = { fill: { fgColor: { rgb: "C00000" } }, font: { bold: true, color: { rgb: "FFFFFF" } } };
-      alertWs['A3'].s = { fill: { fgColor: { rgb: "FFC000" } }, font: { bold: true } };
-      const lowStockRow = 4;
-      const lowStockHeaders = ['A4', 'B4', 'C4', 'D4', 'E4', 'F4'];
-      lowStockHeaders.forEach(cell => {
-        if (alertWs[cell]) alertWs[cell].s = { fill: { fgColor: { rgb: "FFF2CC" } }, font: { bold: true } };
+
+      const ws = XLSX.utils.aoa_to_sheet(allData);
+
+      // Apply color highlights to section headers
+      // Summary header (Blue) - Row 1
+      ws['A1'].s = { fill: { fgColor: { rgb: "4472C4" } }, font: { bold: true, color: { rgb: "FFFFFF" }, sz: 14 } };
+      ws['A3'].s = { fill: { fgColor: { rgb: "D9E1F2" } }, font: { bold: true } };
+      ws['B3'].s = { fill: { fgColor: { rgb: "D9E1F2" } }, font: { bold: true } };
+
+      // Inventory header (Green) - Calculate row number
+      const inventoryHeaderRow = 16;
+      ws[`A${inventoryHeaderRow}`].s = { fill: { fgColor: { rgb: "70AD47" } }, font: { bold: true, color: { rgb: "FFFFFF" }, sz: 14 } };
+      const invHeaderCols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+      invHeaderCols.forEach(col => {
+        const cell = `${col}${inventoryHeaderRow + 2}`;
+        if (ws[cell]) ws[cell].s = { fill: { fgColor: { rgb: "E2EFDA" } }, font: { bold: true } };
       });
-      
-      const outOfStockHeaderRow = 5 + lowStockItems.length + 1;
-      alertWs[`A${outOfStockHeaderRow}`].s = { fill: { fgColor: { rgb: "C00000" } }, font: { bold: true, color: { rgb: "FFFFFF" } } };
-      const outOfStockHeaders = [`A${outOfStockHeaderRow + 1}`, `B${outOfStockHeaderRow + 1}`, `C${outOfStockHeaderRow + 1}`, `D${outOfStockHeaderRow + 1}`, `E${outOfStockHeaderRow + 1}`, `F${outOfStockHeaderRow + 1}`];
-      outOfStockHeaders.forEach(cell => {
-        if (alertWs[cell]) alertWs[cell].s = { fill: { fgColor: { rgb: "FFE6E6" } }, font: { bold: true } };
+
+      // Transaction header (Orange)
+      const transactionHeaderRow = inventoryHeaderRow + 3 + sortedItems.length + 2;
+      ws[`A${transactionHeaderRow}`].s = { fill: { fgColor: { rgb: "FFC000" } }, font: { bold: true, color: { rgb: "FFFFFF" }, sz: 14 } };
+      const txHeaderCols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      txHeaderCols.forEach(col => {
+        const cell = `${col}${transactionHeaderRow + 2}`;
+        if (ws[cell]) ws[cell].s = { fill: { fgColor: { rgb: "FFF2CC" } }, font: { bold: true } };
       });
-      
-      XLSX.utils.book_append_sheet(wb, alertWs, 'Low & Out of Stock');
+
+      // Low Stock header (Yellow)
+      const lowStockHeaderRow = transactionHeaderRow + 3 + sortedTransactions.length + 2;
+      ws[`A${lowStockHeaderRow}`].s = { fill: { fgColor: { rgb: "FFC000" } }, font: { bold: true, color: { rgb: "000000" }, sz: 14 } };
+      const lowStockCols = ['A', 'B', 'C', 'D', 'E', 'F'];
+      lowStockCols.forEach(col => {
+        const cell = `${col}${lowStockHeaderRow + 2}`;
+        if (ws[cell]) ws[cell].s = { fill: { fgColor: { rgb: "FFF2CC" } }, font: { bold: true } };
+      });
+
+      // Out of Stock header (Red)
+      const outOfStockHeaderRow = lowStockHeaderRow + 3 + lowStockItems.length + 2;
+      ws[`A${outOfStockHeaderRow}`].s = { fill: { fgColor: { rgb: "C00000" } }, font: { bold: true, color: { rgb: "FFFFFF" }, sz: 14 } };
+      const outOfStockCols = ['A', 'B', 'C', 'D', 'E', 'F'];
+      outOfStockCols.forEach(col => {
+        const cell = `${col}${outOfStockHeaderRow + 2}`;
+        if (ws[cell]) ws[cell].s = { fill: { fgColor: { rgb: "FFE6E6" } }, font: { bold: true } };
+      });
+
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 15 }, // Item Code
+        { wch: 30 }, // Item Name / Metric
+        { wch: 15 }, // Category / Value
+        { wch: 20 }, // Location
+        { wch: 18 }, // Maintaining Stock
+        { wch: 12 }, // Available
+        { wch: 12 }, // Borrowed
+        { wch: 15 }, // Active Borrow
+        { wch: 12 }  // Condition
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, 'NUF - CHS Inventory Report');
 
       // Write file
-      XLSX.writeFile(wb, `LabTrack_Report_${timestamp}.xlsx`);
+      XLSX.writeFile(wb, `NUF_CHS_Inventory_Report_${timestamp}.xlsx`);
 
-      toast.success('Excel report exported with color highlights and separate Low/Out of Stock sheet!');
+      toast.success('Excel report exported with color-highlighted sections on single sheet!');
     } catch (error) {
       toast.error('Failed to export report');
       console.error('Export error:', error);
@@ -194,7 +206,7 @@ export default function Reports() {
 
   const activeBorrows = transactions.filter((t) => t.status === "approved").length;
   const completedReturns = transactions.filter((t) => t.status === "returned").length;
-  const overdueItems = transactions.filter((t) => t.status === "overdue").length;
+  const overdueItems = transactions.filter(isOverdue).length;
   const pendingRequests = transactions.filter((t) => t.status === "pending").length;
 
   const utilizationRate = totalStock > 0 ? ((borrowedItems / totalStock) * 100).toFixed(1) : "0";

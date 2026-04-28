@@ -18,6 +18,16 @@ export interface Transaction {
   inventory_items?: { name: string; location: string };
 }
 
+export function isOverdue(transaction: { status: string; due_date: string }): boolean {
+  if (transaction.status !== "approved") return false;
+  const today = new Date().toISOString().split("T")[0];
+  return transaction.due_date < today;
+}
+
+export function getEffectiveStatus(transaction: Transaction): string {
+  return isOverdue(transaction) ? "overdue" : transaction.status;
+}
+
 export function useTransactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);

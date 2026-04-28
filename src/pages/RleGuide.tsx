@@ -132,8 +132,8 @@ export default function RleGuide() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">RLE Guide</h1>
-          <p className="text-muted-foreground mt-1">Related Learning Experience guides for all year levels</p>
+          <h1 className="text-2xl font-bold">RLE Procedure</h1>
+          <p className="text-muted-foreground mt-1">Related Learning Experience procedures for all year levels</p>
         </div>
         {user?.role === "sa" && (
           <Button onClick={() => handleOpenDialog()}>

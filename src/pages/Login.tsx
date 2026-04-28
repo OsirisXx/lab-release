@@ -68,8 +68,7 @@ export default function Login() {
           <div className="flex items-center gap-4 mb-8">
             <img src="/logo/schoollogo.png" alt="School Logo" className="h-16 w-16 object-contain" />
             <div className="flex-1">
-              <h1 className="text-xl font-bold text-sidebar-foreground">LabTrack</h1>
-              <p className="text-sm text-sidebar-foreground/60">CHS Inventory System</p>
+              <h1 className="text-xl font-bold text-sidebar-foreground">NUF - CHS Inventory</h1>
             </div>
             <img src="/logo/departmentlogo.png" alt="Department Logo" className="h-16 w-16 object-contain" />
           </div>
@@ -100,7 +99,7 @@ export default function Login() {
         <div className="w-full max-w-sm animate-slide-up">
           <div className="lg:hidden flex items-center gap-3 mb-8">
             <img src="/logo/schoollogo.png" alt="School Logo" className="h-10 w-10 object-contain" />
-            <span className="text-lg font-bold">LabTrack</span>
+            <span className="text-lg font-bold">NUF - CHS Inventory</span>
             <img src="/logo/departmentlogo.png" alt="Department Logo" className="h-10 w-10 object-contain" />
           </div>
 

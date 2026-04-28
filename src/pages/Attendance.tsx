@@ -6,6 +6,25 @@ import { useAttendance } from "@/hooks/useAttendance";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
+export function getInitials(name: string): string {
+  return name.split(/\s+/).map(word => word[0]).join("").toUpperCase();
+}
+
+export function formatDuration(timeIn: string, timeOut: string | null): string {
+  if (!timeOut) return "—";
+
+  const [inH, inM] = timeIn.split(":").map(Number);
+  const [outH, outM] = timeOut.split(":").map(Number);
+  const totalMinutes = (outH * 60 + outM) - (inH * 60 + inM);
+
+  if (totalMinutes < 0) return "—";
+  if (totalMinutes < 60) return `${totalMinutes}m`;
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+}
+
 export default function Attendance() {
   const { attendance, loading, clockIn, clockOut } = useAttendance();
   const { user } = useAuth();
@@ -88,15 +107,15 @@ export default function Attendance() {
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-medium">
-                      SA
+                      {record.user_profiles?.name ? getInitials(record.user_profiles.name) : "SA"}
                     </div>
-                    <span className="font-medium">Student Assistant</span>
+                    <span className="font-medium">{record.user_profiles?.name ?? "Student Assistant"}</span>
                   </div>
                 </td>
                 <td className="px-6 py-4 text-sm">{record.date}</td>
                 <td className="px-6 py-4 text-sm">{record.time_in}</td>
                 <td className="px-6 py-4 text-sm">{record.time_out || "—"}</td>
-                <td className="px-6 py-4 text-sm">—</td>
+                <td className="px-6 py-4 text-sm">{formatDuration(record.time_in, record.time_out)}</td>
                 <td className="px-6 py-4">
                   <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${record.time_out ? "bg-success/10 text-success" : "bg-warning/10 text-warning"}`}>
                     {record.time_out ? "Complete" : "Active"}

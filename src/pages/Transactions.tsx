@@ -3,7 +3,7 @@ import { Search, Filter, Check, X, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { useTransactions } from "@/hooks/useTransactions";
+import { useTransactions, getEffectiveStatus, isOverdue } from "@/hooks/useTransactions";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -44,7 +44,8 @@ export default function Transactions() {
     const matchesSearch =
       tx.inventory_items?.name.toLowerCase().includes(search.toLowerCase()) ||
       tx.user_profiles?.name.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "all" || tx.status === statusFilter;
+    const effectiveStatus = getEffectiveStatus(tx);
+    const matchesStatus = statusFilter === "all" || effectiveStatus === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -109,7 +110,7 @@ export default function Transactions() {
                 <td className="px-5 py-3.5 tabular-nums text-muted-foreground">{tx.due_date}</td>
                 <td className="px-5 py-3.5 text-center tabular-nums">{tx.quantity}</td>
                 <td className="px-5 py-3.5 text-center">
-                  <StatusBadge status={tx.status} />
+                  <StatusBadge status={getEffectiveStatus(tx)} />
                 </td>
                 <td className="px-5 py-3.5 text-right">
                   {tx.status === "pending" && user?.role === "sa" && (
@@ -122,7 +123,7 @@ export default function Transactions() {
                       </Button>
                     </div>
                   )}
-                  {tx.status === "approved" && user?.role === "sa" && (
+                  {(tx.status === "approved" || isOverdue(tx)) && user?.role === "sa" && (
                     <Button size="sm" variant="outline" onClick={() => handleReturn(tx.id)}>
                       <RotateCcw className="h-4 w-4 mr-2" />
                       Return

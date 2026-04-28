@@ -75,7 +75,7 @@ export default function Inventory() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Inventory</h1>
+          <h1 className="text-2xl font-bold">Inventory/Borrowing</h1>
           <p className="text-muted-foreground mt-1">{items.length} items across all locations</p>
         </div>
         {user?.role === "sa" && (
