@@ -67,7 +67,7 @@ export default function Login() {
         <div className="max-w-md animate-fade-in">
           <div className="flex items-center gap-4 mb-8">
             <img src="/logo/schoollogo.png" alt="School Logo" className="h-16 w-16 object-contain" />
-            <div className="flex-1">
+            <div className="flex-1 text-center">
               <h1 className="text-xl font-bold text-sidebar-foreground">NUF - CHS Inventory</h1>
             </div>
             <img src="/logo/departmentlogo.png" alt="Department Logo" className="h-16 w-16 object-contain" />
