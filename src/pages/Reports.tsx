@@ -179,12 +179,73 @@ export default function Reports() {
         { wch: 12 }  // Condition
       ];
 
+      const transactionWs = XLSX.utils.aoa_to_sheet([
+        ['TRANSACTION REPORT', `Generated: ${new Date().toLocaleString()}`],
+        [],
+        ['Date', 'Time', 'User Name', 'CI ID', 'Item Name', 'Action', 'Quantity', 'Status'],
+        ...sortedTransactions.map(tx => {
+          const date = new Date(tx.created_at);
+          return [
+            date.toLocaleDateString(),
+            date.toLocaleTimeString(),
+            tx.user_profiles?.name || 'Unknown',
+            tx.user_profiles?.ci_id || 'N/A',
+            tx.inventory_items?.name || 'Unknown',
+            tx.type === 'borrow' ? 'Borrow' : tx.type === 'reserve' ? 'Reserve' : 'Return',
+            tx.quantity,
+            tx.status.charAt(0).toUpperCase() + tx.status.slice(1),
+          ];
+        }),
+      ]);
+      transactionWs['A1'].s = { fill: { fgColor: { rgb: 'FFC000' } }, font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 14 } };
+      ['A3', 'B3', 'C3', 'D3', 'E3', 'F3', 'G3', 'H3'].forEach(cell => {
+        if (transactionWs[cell]) transactionWs[cell].s = { fill: { fgColor: { rgb: 'FFF2CC' } }, font: { bold: true } };
+      });
+      transactionWs['!cols'] = [
+        { wch: 14 }, { wch: 12 }, { wch: 24 }, { wch: 12 },
+        { wch: 30 }, { wch: 12 }, { wch: 10 }, { wch: 14 },
+      ];
+
+      const lowStockWs = XLSX.utils.aoa_to_sheet([
+        ['LOW STOCK ITEMS', `Generated: ${new Date().toLocaleString()}`],
+        [],
+        ['Item Code', 'Item Name', 'Location', 'Maintaining Stock', 'Available', 'Status'],
+        ...lowStockItems.map(item => [
+          item.item_code || 'N/A', item.name, item.location,
+          item.maintaining_stock, item.stock_available, 'Low Stock',
+        ]),
+      ]);
+      lowStockWs['A1'].s = { fill: { fgColor: { rgb: 'FFC000' } }, font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 14 } };
+      ['A3', 'B3', 'C3', 'D3', 'E3', 'F3'].forEach(cell => {
+        if (lowStockWs[cell]) lowStockWs[cell].s = { fill: { fgColor: { rgb: 'FFF2CC' } }, font: { bold: true } };
+      });
+      lowStockWs['!cols'] = [{ wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 18 }, { wch: 12 }, { wch: 16 }];
+
+      const outOfStockWs = XLSX.utils.aoa_to_sheet([
+        ['OUT OF STOCK ITEMS', `Generated: ${new Date().toLocaleString()}`],
+        [],
+        ['Item Code', 'Item Name', 'Location', 'Maintaining Stock', 'Available', 'Status'],
+        ...outOfStockItems.map(item => [
+          item.item_code || 'N/A', item.name, item.location,
+          item.maintaining_stock, item.stock_available, 'Out of Stock',
+        ]),
+      ]);
+      outOfStockWs['A1'].s = { fill: { fgColor: { rgb: 'C00000' } }, font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 14 } };
+      ['A3', 'B3', 'C3', 'D3', 'E3', 'F3'].forEach(cell => {
+        if (outOfStockWs[cell]) outOfStockWs[cell].s = { fill: { fgColor: { rgb: 'FFE6E6' } }, font: { bold: true } };
+      });
+      outOfStockWs['!cols'] = [{ wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 18 }, { wch: 12 }, { wch: 16 }];
+
+      // Keep the combined summary/inventory report and restore the separate tabs.
       XLSX.utils.book_append_sheet(wb, ws, 'NUF - CHS Inventory Report');
+      XLSX.utils.book_append_sheet(wb, transactionWs, 'transaction');
+      XLSX.utils.book_append_sheet(wb, lowStockWs, 'low stock');
+      XLSX.utils.book_append_sheet(wb, outOfStockWs, 'out of stock');
 
       // Write file
       XLSX.writeFile(wb, `NUF_CHS_Inventory_Report_${timestamp}.xlsx`);
 
-      toast.success('Excel report exported with color-highlighted sections on single sheet!');
+      toast.success('Excel report exported with separate transaction, low stock, and out of stock tabs!');
     } catch (error) {
       toast.error('Failed to export report');
       console.error('Export error:', error);

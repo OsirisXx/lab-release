@@ -12,6 +12,13 @@ export interface AttendanceRecord {
   user_profiles?: { name: string };
 }
 
+const getLocalDate = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export function useAttendance() {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +28,13 @@ export function useAttendance() {
   useEffect(() => {
     fetchAttendance();
 
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") fetchAttendance();
+    };
+
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
     const channel = supabase
       .channel("attendance_changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "attendance" }, () => {
@@ -29,12 +43,15 @@ export function useAttendance() {
       .subscribe();
 
     return () => {
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
       supabase.removeChannel(channel);
     };
   }, []);
 
   const fetchAttendance = async () => {
     try {
+      setError(null);
       const { data, error } = await supabase
         .from("attendance")
         .select("*, user_profiles(name)")
@@ -43,8 +60,13 @@ export function useAttendance() {
 
       if (error) throw error;
       setAttendance(data || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error
+        ? err.message
+        : typeof err === "object" && err !== null && "message" in err && typeof err.message === "string"
+          ? err.message
+          : "Failed to load attendance records";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -54,8 +76,20 @@ export function useAttendance() {
     if (!user) throw new Error("Must be logged in");
     if (user.role !== "sa") throw new Error("Only Student Assistants can log attendance");
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = getLocalDate();
     const timeNow = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
+
+    const { data: existingRecord, error: existingRecordError } = await supabase
+      .from("attendance")
+      .select("id, time_out")
+      .eq("user_id", user.id)
+      .eq("date", today)
+      .maybeSingle();
+
+    if (existingRecordError) throw existingRecordError;
+    if (existingRecord) {
+      throw new Error(existingRecord.time_out ? "Attendance is already complete for today" : "You are already clocked in today");
+    }
 
     const { data, error } = await supabase
       .from("attendance")
@@ -67,11 +101,14 @@ export function useAttendance() {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === "23505") {
+        throw new Error("Attendance is already recorded for today");
+      }
+      throw error;
+    }
 
-    // Immediately refetch to update UI
     await fetchAttendance();
-
     return data;
   };
 
@@ -89,9 +126,7 @@ export function useAttendance() {
 
     if (error) throw error;
 
-    // Immediately refetch to update UI
     await fetchAttendance();
-
     return data;
   };
 

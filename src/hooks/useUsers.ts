@@ -49,6 +49,7 @@ export function useUsers() {
   const deleteUser = async (userId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
+    if (userId === user.id) throw new Error("You cannot delete your own account");
 
     const { error: deleteError } = await supabase.rpc('delete_user', {
       user_id_to_delete: userId,

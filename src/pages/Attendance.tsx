@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clock, Calendar, LogIn, LogOut as LogOutIcon, Search, Loader2 } from "lucide-react";
+import { Clock, LogIn, LogOut as LogOutIcon, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAttendance } from "@/hooks/useAttendance";
@@ -25,25 +25,38 @@ export function formatDuration(timeIn: string, timeOut: string | null): string {
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
+const getLocalDate = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export default function Attendance() {
   const { attendance, loading, clockIn, clockOut } = useAttendance();
   const { user } = useAuth();
   const [search, setSearch] = useState("");
 
-  const filtered = attendance;
+  const filtered = attendance.filter((record) => {
+    const name = record.user_profiles?.name?.toLowerCase() || "";
+    return name.includes(search.toLowerCase());
+  });
 
+  const today = getLocalDate();
   const todayRecord = attendance.find(
-    (r) => r.user_id === user?.id && 
-    r.date === new Date().toISOString().split('T')[0] &&
-    !r.time_out
+    (record) => record.user_id === user?.id && record.date === today && !record.time_out,
+  );
+  const hasTodayRecord = attendance.some(
+    (record) => record.user_id === user?.id && record.date === today,
   );
 
   const handleClockIn = async () => {
     try {
       await clockIn();
       toast.success("Clocked in successfully");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to clock in");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to clock in";
+      toast.error(message);
     }
   };
 
@@ -52,8 +65,9 @@ export default function Attendance() {
     try {
       await clockOut(todayRecord.id);
       toast.success("Clocked out successfully");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to clock out");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to clock out";
+      toast.error(message);
     }
   };
 
@@ -74,7 +88,7 @@ export default function Attendance() {
         </div>
         {user?.role === "sa" && (
           <div className="flex gap-2">
-            <Button onClick={handleClockIn} disabled={!!todayRecord}>
+            <Button onClick={handleClockIn} disabled={hasTodayRecord}>
               <LogIn className="h-4 w-4 mr-2" />
               Clock In
             </Button>
@@ -84,6 +98,13 @@ export default function Attendance() {
             </Button>
           </div>
         )}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search by name..." value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" />
+        </div>
       </div>
 
       <div className="bg-card rounded-lg border overflow-hidden animate-slide-up" style={{ animationDelay: "60ms", animationFillMode: "both" }}>

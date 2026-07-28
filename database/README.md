@@ -60,3 +60,7 @@ Done! Your database is ready.
 
 **Error: "duplicate key value"**
 - You already ran this script. Skip it or clear the table first.
+
+## 7. User Delete Repair (07-fix-user-delete-audit.sql)
+
+Run this migration on existing deployments after the previous scripts. It repairs the audit-log and RLE-guide foreign keys and replaces the user deletion function so the audit entry is written before deletion, self-deletion is rejected, and only the authenticated Student Assistant can perform the action.
