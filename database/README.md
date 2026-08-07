@@ -100,3 +100,7 @@ The Vercel cron uses `process_due_reservations()` when `SUPABASE_SERVICE_ROLE_KE
 ## 11. SA Reservation and CI Tagging (`11-sa-reservation-ci-tagging.sql`)
 
 Run this after `10-reservation-stock-holds.sql`. It adds the SA creator identity, requires a registered CI borrower, makes new SA-created reservations approved in one operation, and exposes the selected CI's reservation through the existing borrower-based visibility rules. The reservation period is shown in both the SA Reservations page and the CI Transactions page.
+
+## 12. Student Tagging and Return Approval (`12-student-tagging.sql`)
+
+Run this after `11-sa-reservation-ci-tagging.sql`. It adds reservation and transaction student-tag records, enforces 1–3 unique student names, stores optional student numbers, copies reservation tags into automatically issued transactions, and records the tagged student selected by the SA when approving a return. The migration replaces the reservation, borrow-approval, and return RPC signatures used by the updated frontend.

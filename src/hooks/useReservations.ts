@@ -2,6 +2,15 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { addCalendarDays, getApplicationDate } from "@/lib/date-utils";
+import type { StudentTagInput } from "@/hooks/useTransactions";
+
+export interface ReservationStudentTag {
+  id: string;
+  reservation_id: string;
+  student_name: string;
+  student_number: string | null;
+  created_at: string;
+}
 
 export interface Reservation {
   id: string;
@@ -16,6 +25,7 @@ export interface Reservation {
   issued_transaction_id: string | null;
   issued_at: string | null;
   created_at: string;
+  reservation_student_tags?: ReservationStudentTag[];
   user_profiles?: { name: string; email: string; ci_id: string | null };
   inventory_items?: { name: string; location: string };
 }
@@ -32,6 +42,9 @@ export function useReservations() {
     const channel = supabase
       .channel("reservation_changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "reservations" }, () => {
+        fetchReservations();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "reservation_student_tags" }, () => {
         fetchReservations();
       })
       .subscribe();
@@ -55,7 +68,8 @@ export function useReservations() {
         .select(`
           *,
           user_profiles!reservations_user_id_fkey (name, email, ci_id),
-          inventory_items (name, location)
+          inventory_items (name, location),
+          reservation_student_tags (*)
         `)
         .order("created_at", { ascending: false });
 
@@ -86,6 +100,7 @@ export function useReservations() {
     endDate: string,
     quantity: number,
     borrowerId: string,
+    studentTags: StudentTagInput[],
   ) => {
     if (user?.role !== "sa") throw new Error("Only Student Assistants can create reservations");
 
@@ -99,6 +114,13 @@ export function useReservations() {
     if (!Number.isInteger(quantity) || quantity <= 0) {
       throw new Error("Reservation quantity must be greater than zero");
     }
+    const normalizedTags = studentTags.map((tag) => ({
+      name: tag.name.trim(),
+      student_number: tag.student_number?.trim() || null,
+    }));
+    if (normalizedTags.length < 1 || normalizedTags.length > 3 || normalizedTags.some((tag) => !tag.name)) {
+      throw new Error("Tag between 1 and 3 accompanying students before creating the reservation");
+    }
 
     const { data, error } = await supabase.rpc("create_reservation", {
       p_item_id: itemId,
@@ -106,6 +128,7 @@ export function useReservations() {
       p_end_date: endDate,
       p_quantity: quantity,
       p_borrower_id: borrowerId,
+      p_student_tags: normalizedTags,
     });
 
     if (error) throw error;

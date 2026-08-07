@@ -21,6 +21,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { StudentTagsField } from "@/components/StudentTagsField";
+import type { StudentTagInput } from "@/hooks/useTransactions";
 
 function getReservationDates(startDate: string, endDate: string): Date[] {
   const dates: Date[] = [];
@@ -50,6 +52,7 @@ export default function Reservations() {
   const minimumReservationDate = addCalendarDays(getApplicationDate(), 2);
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [studentTags, setStudentTags] = useState<StudentTagInput[]>([{ name: "", student_number: "" }]);
   const [formData, setFormData] = useState({
     item_id: "",
     borrower_id: "",
@@ -96,9 +99,11 @@ export default function Reservations() {
         formData.end_date,
         formData.quantity,
         formData.borrower_id,
+        studentTags,
       );
       toast.success("Reservation created for the Clinical Instructor; stock held immediately");
       setIsDialogOpen(false);
+      setStudentTags([{ name: "", student_number: "" }]);
       setFormData({ item_id: "", borrower_id: "", start_date: "", end_date: "", quantity: 1 });
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to create reservation");
@@ -181,6 +186,9 @@ export default function Reservations() {
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {r.start_date} → {r.end_date}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Students: {r.reservation_student_tags?.map((tag) => tag.student_name).join(", ") || "—"}
                         </p>
                         {r.issued_transaction_id && (
                           <p className="text-xs text-success mt-0.5">Automatically issued on the reservation start date</p>
@@ -296,6 +304,11 @@ export default function Reservations() {
                 onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
               />
             </div>
+            <StudentTagsField
+              tags={studentTags}
+              onChange={setStudentTags}
+              description="The SA must tag 1 to 3 students accompanying the selected Clinical Instructor."
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>

@@ -5,6 +5,19 @@ import { getApplicationDate, getDueAtForDate } from "@/lib/date-utils";
 
 export type ExtensionStatus = "pending" | "approved" | "rejected";
 
+export interface StudentTagInput {
+  name: string;
+  student_number?: string;
+}
+
+export interface StudentTag {
+  id: string;
+  transaction_id: string;
+  student_name: string;
+  student_number: string | null;
+  created_at: string;
+}
+
 export interface Transaction {
   id: string;
   user_id: string;
@@ -20,6 +33,8 @@ export interface Transaction {
   return_date: string | null;
   created_at: string;
   updated_at: string;
+  returned_by_student_tag_id?: string | null;
+  transaction_student_tags?: StudentTag[];
   user_profiles?: { name: string; email: string; ci_id: string | null };
   inventory_items?: { name: string; location: string };
 }
@@ -76,6 +91,7 @@ export function useTransactions() {
       .channel("transaction_changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "extension_requests" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "transaction_student_tags" }, refresh)
       .subscribe();
     const interval = window.setInterval(refresh, 60_000);
 
@@ -88,16 +104,20 @@ export function useTransactions() {
   const fetchTransactions = async () => {
     try {
       setError(null);
-      // This makes overdue status update while the app is open. The deployment
-      // cron also invokes the same function for transactions no one is viewing.
-      await supabase.rpc("mark_overdue_transactions");
+      // Only SAs (or the server cron) may mutate overdue statuses. CI users
+      // derive the effective overdue status client-side below and must not call
+      // this SA-only RPC, otherwise Supabase returns HTTP 400 for the CI session.
+      if (user?.role === "sa") {
+        await supabase.rpc("mark_overdue_transactions");
+      }
 
       let query = supabase
         .from("transactions")
         .select(`
           *,
           user_profiles (name, email, ci_id),
-          inventory_items (name, location)
+          inventory_items (name, location),
+          transaction_student_tags!transaction_student_tags_transaction_id_fkey (*)
         `)
         .order("created_at", { ascending: false });
 
@@ -171,11 +191,19 @@ export function useTransactions() {
     return data;
   };
 
-  const approveTransaction = async (transactionId: string) => {
+  const approveTransaction = async (transactionId: string, studentTags: StudentTagInput[]) => {
     if (user?.role !== "sa") throw new Error("Only Student Assistants can approve transactions");
+    const normalizedTags = studentTags.map((tag) => ({
+      name: tag.name.trim(),
+      student_number: tag.student_number?.trim() || null,
+    }));
+    if (normalizedTags.length < 1 || normalizedTags.length > 3 || normalizedTags.some((tag) => !tag.name)) {
+      throw new Error("Tag between 1 and 3 accompanying students before approving");
+    }
 
     const { data, error } = await supabase.rpc("approve_transaction", {
       p_transaction_id: transactionId,
+      p_student_tags: normalizedTags,
     });
     if (error) throw error;
 
@@ -195,11 +223,12 @@ export function useTransactions() {
     return data as Transaction;
   };
 
-  const returnItem = async (transactionId: string) => {
+  const returnItem = async (transactionId: string, returningStudentTagId?: string) => {
     if (user?.role !== "sa") throw new Error("Only Student Assistants can process returns");
 
     const { data, error } = await supabase.rpc("return_transaction", {
       p_transaction_id: transactionId,
+      p_returning_student_tag_id: returningStudentTagId || null,
     });
     if (error) throw error;
 

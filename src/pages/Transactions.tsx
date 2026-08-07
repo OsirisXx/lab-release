@@ -4,10 +4,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useTransactions, getEffectiveStatus, isActiveBorrow } from "@/hooks/useTransactions";
+import type { StudentTagInput, Transaction } from "@/hooks/useTransactions";
 import { useReservations } from "@/hooks/useReservations";
 import { formatDueDate } from "@/lib/date-utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { StudentTagsField } from "@/components/StudentTagsField";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 export default function Transactions() {
   const [search, setSearch] = useState("");
@@ -16,6 +26,7 @@ export default function Transactions() {
     transactions,
     extensionRequests,
     loading,
+    error: transactionError,
     approveTransaction,
     rejectTransaction,
     returnItem,
@@ -24,11 +35,22 @@ export default function Transactions() {
   } = useTransactions();
   const { reservations, loading: reservationsLoading } = useReservations();
   const { user } = useAuth();
+  const [approvalTransaction, setApprovalTransaction] = useState<Transaction | null>(null);
+  const [approvalTags, setApprovalTags] = useState<StudentTagInput[]>([{ name: "", student_number: "" }]);
+  const [returnTransaction, setReturnTransaction] = useState<Transaction | null>(null);
+  const [returningStudentTagId, setReturningStudentTagId] = useState("");
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = (transaction: Transaction) => {
+    setApprovalTransaction(transaction);
+    setApprovalTags([{ name: "", student_number: "" }]);
+  };
+
+  const confirmApprove = async () => {
+    if (!approvalTransaction) return;
     try {
-      await approveTransaction(id);
-      toast.success("Transaction approved");
+      await approveTransaction(approvalTransaction.id, approvalTags);
+      toast.success("Transaction approved and students tagged");
+      setApprovalTransaction(null);
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to approve transaction");
     }
@@ -43,10 +65,18 @@ export default function Transactions() {
     }
   };
 
-  const handleReturn = async (id: string) => {
+  const handleReturn = (transaction: Transaction) => {
+    setReturnTransaction(transaction);
+    setReturningStudentTagId(transaction.transaction_student_tags?.[0]?.id || "");
+  };
+
+  const confirmReturn = async () => {
+    if (!returnTransaction) return;
     try {
-      await returnItem(id);
+      await returnItem(returnTransaction.id, returningStudentTagId);
       toast.success("Item returned successfully");
+      setReturnTransaction(null);
+      setReturningStudentTagId("");
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to return item");
     }
@@ -94,6 +124,11 @@ export default function Transactions() {
       <div>
         <h1 className="text-2xl font-bold">Transactions</h1>
         <p className="text-muted-foreground mt-1">Manage borrow, return, overdue, and extension requests</p>
+        {transactionError && (
+          <p className="mt-2 text-sm text-destructive">
+            Unable to load transactions: {transactionError}
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-3 animate-slide-up" style={{ animationDelay: "60ms", animationFillMode: "both" }}>
@@ -134,6 +169,9 @@ export default function Transactions() {
                     Borrower: {reservation.user_profiles?.name || "Registered CI"}
                     {reservation.user_profiles?.ci_id ? ` (${reservation.user_profiles.ci_id})` : ""}
                     {` · Qty: ${reservation.quantity}`}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Students: {reservation.reservation_student_tags?.map((tag) => tag.student_name).join(", ") || "Not tagged"}
                   </p>
                 </div>
                 <div className="text-sm text-right">
@@ -181,6 +219,9 @@ export default function Transactions() {
                   <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-5 py-3.5">
                       <p className="font-medium">{tx.inventory_items?.name}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Students: {tx.transaction_student_tags?.map((tag) => tag.student_name).join(", ") || "Not tagged"}
+                      </p>
                       <p className="text-xs text-muted-foreground">{tx.id.slice(0, 8)}</p>
                     </td>
                     <td className="px-5 py-3.5 text-muted-foreground">{tx.user_profiles?.name}</td>
@@ -210,7 +251,7 @@ export default function Transactions() {
                       <div className="flex flex-wrap items-center justify-end gap-1">
                         {tx.status === "pending" && user?.role === "sa" && (
                           <>
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-success" onClick={() => handleApprove(tx.id)} title="Approve">
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-success" onClick={() => handleApprove(tx)} title="Approve">
                               <Check className="h-4 w-4" />
                             </Button>
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => handleReject(tx.id)} title="Reject">
@@ -235,7 +276,7 @@ export default function Transactions() {
                           </>
                         )}
                         {isActiveBorrow(tx) && user?.role === "sa" && (
-                          <Button size="sm" variant="outline" onClick={() => handleReturn(tx.id)}>
+                          <Button size="sm" variant="outline" onClick={() => handleReturn(tx)}>
                             <RotateCcw className="h-4 w-4 mr-1" />
                             Return
                           </Button>
@@ -250,9 +291,52 @@ export default function Transactions() {
         )}
       </div>
 
-      {filtered.length === 0 && filteredReservations.length === 0 && !loading && (
-        <p className="text-center text-muted-foreground py-8">No transactions found.</p>
-      )}
+      <Dialog open={Boolean(approvalTransaction)} onOpenChange={(open) => !open && setApprovalTransaction(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tag Students Before Approval</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Tag the students accompanying {approvalTransaction?.user_profiles?.name || "the Clinical Instructor"}. At least one student is required.
+            </p>
+            <StudentTagsField tags={approvalTags} onChange={setApprovalTags} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApprovalTransaction(null)}>Cancel</Button>
+            <Button onClick={confirmApprove}>Approve Transaction</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(returnTransaction)} onOpenChange={(open) => !open && setReturnTransaction(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approve Return</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <p className="text-sm text-muted-foreground">Select the tagged student who returned the borrowed item.</p>
+            <Label htmlFor="returning-student">Returning student</Label>
+            <select
+              id="returning-student"
+              value={returningStudentTagId}
+              onChange={(event) => setReturningStudentTagId(event.target.value)}
+              className="w-full px-3 py-2 rounded-md border bg-background"
+            >
+              <option value="">{returnTransaction?.transaction_student_tags?.length ? "Select a tagged student..." : "No student tags recorded (legacy)"}</option>
+              {returnTransaction?.transaction_student_tags?.map((tag) => (
+                <option key={tag.id} value={tag.id}>
+                  {tag.student_name}{tag.student_number ? ` (${tag.student_number})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReturnTransaction(null)}>Cancel</Button>
+            <Button onClick={confirmReturn}>Approve Return & Release Stock</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
