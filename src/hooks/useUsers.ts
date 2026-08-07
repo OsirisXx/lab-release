@@ -57,11 +57,27 @@ export function useUsers() {
 
   const fetchClinicalInstructors = async () => {
     const { data, error } = await supabase.rpc("list_registered_ci_profiles");
-    if (error) {
-      setClinicalInstructors([]);
+    if (!error && data?.length) {
+      setClinicalInstructors((data || []) as User[]);
       return;
     }
-    setClinicalInstructors((data || []) as User[]);
+
+    // Compatibility fallback for deployments where the RPC schema cache has
+    // not refreshed yet. This hook only runs for an authenticated SA; the
+    // database RPC remains the authoritative authorization boundary.
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("user_profiles")
+      .select("id, email, name, role, ci_id, created_at")
+      .eq("role", "ci")
+      .order("name");
+
+    if (fallbackError) {
+      setClinicalInstructors([]);
+      setError(error?.message || fallbackError.message);
+      return;
+    }
+
+    setClinicalInstructors((fallbackData || []) as User[]);
   };
 
   const deleteUser = async (userId: string) => {

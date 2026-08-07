@@ -36,7 +36,7 @@ function getReservationDates(startDate: string, endDate: string): Date[] {
 
 export default function Reservations() {
   const { reservations, loading, createReservation, rejectReservation, cancelReservation } = useReservations();
-  const { clinicalInstructors } = useUsers();
+  const { clinicalInstructors, error: usersError } = useUsers();
   const { items } = useInventory();
   const { user } = useAuth();
   const minimumReservationDate = addCalendarDays(getApplicationDate(), 2);
@@ -228,6 +228,10 @@ export default function Reservations() {
                   </option>
                 ))}
               </select>
+              {usersError && <p className="text-xs text-destructive mt-1.5">Unable to load CI profiles: {usersError}</p>}
+              {!usersError && clinicalInstructors.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1.5">No registered CI profiles were found.</p>
+              )}
             </div>
             <div>
               <Label htmlFor="item">Item</Label>
