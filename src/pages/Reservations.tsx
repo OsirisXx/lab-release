@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 function getReservationDates(startDate: string, endDate: string): Date[] {
   const dates: Date[] = [];
@@ -153,65 +154,69 @@ export default function Reservations() {
           <div className="p-5 border-b">
             <h2 className="font-semibold">Upcoming Reservations</h2>
           </div>
-          {reservationError && (
-            <div className="mx-5 mt-5 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              Unable to load reservations: {reservationError}
-            </div>
-          )}
-          <div className="divide-y">
-            {reservations.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
-                <p className="font-medium">No reservations</p>
-                <p className="text-sm mt-1">Create a reservation to get started</p>
-              </div>
-            ) : (
-              reservations.map((r) => (
-                <div key={r.id} className="flex items-center justify-between px-5 py-4">
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">{r.inventory_items?.name || "Item Reserved"}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Borrower: {r.user_profiles?.name || "Registered CI"}
-                      {r.user_profiles?.ci_id ? ` (${r.user_profiles.ci_id})` : ""}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Qty: {r.quantity} · {r.stock_held_quantity > 0 ? `${r.stock_held_quantity} held` : "No stock held"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {r.start_date} → {r.end_date}
-                    </p>
-                    {r.issued_transaction_id && (
-                      <p className="text-xs text-success mt-0.5">Automatically issued on the reservation start date</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <StatusBadge status={r.status} />
-                    {r.status === "pending" && user?.role === "sa" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleReject(r.id)}
-                        title="Reject reservation and release stock"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {(["pending", "approved"] as const).includes(r.status) && user?.role === "sa" && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 text-destructive"
-                          onClick={() => handleCancel(r.id)}
-                          title="Cancel reservation and release stock"
-                        >
-                          <Ban className="h-4 w-4" />
-                        </Button>
-                      )}
-                  </div>
+          <ScrollArea className="h-[28rem] max-h-[70vh] sm:h-[36rem]">
+            <div>
+              {reservationError && (
+                <div className="mx-5 mt-5 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  Unable to load reservations: {reservationError}
                 </div>
-              ))
-            )}
-          </div>
+              )}
+              <div className="divide-y">
+                {reservations.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <p className="font-medium">No reservations</p>
+                    <p className="text-sm mt-1">Create a reservation to get started</p>
+                  </div>
+                ) : (
+                  reservations.map((r) => (
+                    <div key={r.id} className="flex items-center justify-between px-5 py-4">
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{r.inventory_items?.name || "Item Reserved"}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Borrower: {r.user_profiles?.name || "Registered CI"}
+                          {r.user_profiles?.ci_id ? ` (${r.user_profiles.ci_id})` : ""}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Qty: {r.quantity} · {r.stock_held_quantity > 0 ? `${r.stock_held_quantity} held` : "No stock held"}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {r.start_date} → {r.end_date}
+                        </p>
+                        {r.issued_transaction_id && (
+                          <p className="text-xs text-success mt-0.5">Automatically issued on the reservation start date</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <StatusBadge status={r.status} />
+                        {r.status === "pending" && user?.role === "sa" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleReject(r.id)}
+                            title="Reject reservation and release stock"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {(["pending", "approved"] as const).includes(r.status) && user?.role === "sa" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-destructive"
+                            onClick={() => handleCancel(r.id)}
+                            title="Cancel reservation and release stock"
+                          >
+                            <Ban className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </ScrollArea>
         </div>
       </div>
 
