@@ -23,6 +23,4 @@ See `SETUP-INSTRUCTIONS.md` for detailed setup guide.
 
 ## Supabase keep-alive
 
-The Vercel deployment includes a daily read-only cron request at `/api/keepalive`. It selects only one `id` from `rle_guides` to provide minimal database activity and does not write application data. The endpoint uses the existing `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` environment variables; `SUPABASE_URL` and `SUPABASE_ANON_KEY` may be used instead.
-
-After deploying, confirm that Vercel has the Supabase environment variables configured for the deployment. Optionally set `CRON_SECRET` in Vercel to require the Vercel cron authorization header. The schedule is once daily at 06:00 UTC.
+The Vercel deployment includes a daily cron request at `/api/keepalive`. It performs a minimal `rle_guides` read and, when `SUPABASE_SERVICE_ROLE_KEY` is configured, invokes the Feature 1 overdue-processing function and Feature 2 reservation-processing function at 13:00 UTC (9:00 PM Asia/Manila). The endpoint uses `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` for the read; `SUPABASE_URL` and `SUPABASE_ANON_KEY` may be used instead. Configure `CRON_SECRET` to require the Vercel cron authorization header.

@@ -1,24 +1,34 @@
 import { useState } from "react";
-import { Search, Filter, Check, X, Loader2, RotateCcw } from "lucide-react";
+import { Check, X, Loader2, RotateCcw, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { useTransactions, getEffectiveStatus, isOverdue } from "@/hooks/useTransactions";
+import { useTransactions, getEffectiveStatus, isActiveBorrow } from "@/hooks/useTransactions";
+import { formatDueDate } from "@/lib/date-utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 export default function Transactions() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const { transactions, loading, approveTransaction, rejectTransaction, returnItem } = useTransactions();
+  const {
+    transactions,
+    extensionRequests,
+    loading,
+    approveTransaction,
+    rejectTransaction,
+    returnItem,
+    requestExtension,
+    reviewExtension,
+  } = useTransactions();
   const { user } = useAuth();
 
   const handleApprove = async (id: string) => {
     try {
       await approveTransaction(id);
       toast.success("Transaction approved");
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to approve transaction");
     }
   };
 
@@ -26,8 +36,8 @@ export default function Transactions() {
     try {
       await rejectTransaction(id);
       toast.success("Transaction rejected");
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to reject transaction");
     }
   };
 
@@ -35,8 +45,27 @@ export default function Transactions() {
     try {
       await returnItem(id);
       toast.success("Item returned successfully");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to return item");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to return item");
+    }
+  };
+
+  const handleRequestExtension = async (id: string) => {
+    const reason = window.prompt("Optional reason for requesting one extra day:") ?? undefined;
+    try {
+      await requestExtension(id, reason);
+      toast.success("One-day extension request submitted");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to request extension");
+    }
+  };
+
+  const handleReviewExtension = async (id: string, approve: boolean) => {
+    try {
+      await reviewExtension(id, approve);
+      toast.success(approve ? "Extension approved for one day" : "Extension request rejected");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to review extension");
     }
   };
 
@@ -53,13 +82,12 @@ export default function Transactions() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Transactions</h1>
-        <p className="text-muted-foreground mt-1">Manage borrow and return requests</p>
+        <p className="text-muted-foreground mt-1">Manage borrow, return, overdue, and extension requests</p>
       </div>
 
       <div className="flex items-center gap-3 animate-slide-up" style={{ animationDelay: "60ms", animationFillMode: "both" }}>
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by item or user..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="Search by item or user..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className="flex gap-1 bg-muted rounded-lg p-1">
           {["all", "pending", "approved", "returned", "overdue"].map((s) => (
@@ -82,60 +110,105 @@ export default function Transactions() {
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-muted/50">
-              <th className="text-left px-5 py-3 font-medium text-muted-foreground">Transaction</th>
-              <th className="text-left px-5 py-3 font-medium text-muted-foreground">User</th>
-              <th className="text-left px-5 py-3 font-medium text-muted-foreground">Type</th>
-              <th className="text-left px-5 py-3 font-medium text-muted-foreground">Borrow Date</th>
-              <th className="text-left px-5 py-3 font-medium text-muted-foreground">Due Date</th>
-              <th className="text-center px-5 py-3 font-medium text-muted-foreground">Qty</th>
-              <th className="text-center px-5 py-3 font-medium text-muted-foreground">Status</th>
-              <th className="text-right px-5 py-3 font-medium text-muted-foreground">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {filtered.map((tx) => (
-              <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
-                <td className="px-5 py-3.5">
-                  <p className="font-medium">{tx.inventory_items?.name}</p>
-                  <p className="text-xs text-muted-foreground">{tx.id.slice(0, 8)}</p>
-                </td>
-                <td className="px-5 py-3.5 text-muted-foreground">{tx.user_profiles?.name}</td>
-                <td className="px-5 py-3.5">
-                  <span className="capitalize text-xs font-medium px-2 py-1 rounded-md bg-secondary">{tx.type}</span>
-                </td>
-                <td className="px-5 py-3.5 tabular-nums text-muted-foreground">{tx.borrow_date}</td>
-                <td className="px-5 py-3.5 tabular-nums text-muted-foreground">{tx.due_date}</td>
-                <td className="px-5 py-3.5 text-center tabular-nums">{tx.quantity}</td>
-                <td className="px-5 py-3.5 text-center">
-                  <StatusBadge status={getEffectiveStatus(tx)} />
-                </td>
-                <td className="px-5 py-3.5 text-right">
-                  {tx.status === "pending" && user?.role === "sa" && (
-                    <div className="flex items-center justify-end gap-1">
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-success hover:text-success hover:bg-success/10" onClick={() => handleApprove(tx.id)}>
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleReject(tx.id)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                  {(tx.status === "approved" || isOverdue(tx)) && user?.role === "sa" && (
-                    <Button size="sm" variant="outline" onClick={() => handleReturn(tx.id)}>
-                      <RotateCcw className="h-4 w-4 mr-2" />
-                      Return
-                    </Button>
-                  )}
-                </td>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="text-left px-5 py-3 font-medium text-muted-foreground">Transaction</th>
+                <th className="text-left px-5 py-3 font-medium text-muted-foreground">User</th>
+                <th className="text-left px-5 py-3 font-medium text-muted-foreground">Type</th>
+                <th className="text-left px-5 py-3 font-medium text-muted-foreground">Borrow Date</th>
+                <th className="text-left px-5 py-3 font-medium text-muted-foreground">Due Date</th>
+                <th className="text-center px-5 py-3 font-medium text-muted-foreground">Qty</th>
+                <th className="text-center px-5 py-3 font-medium text-muted-foreground">Status</th>
+                <th className="text-right px-5 py-3 font-medium text-muted-foreground">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y">
+              {filtered.map((tx) => {
+                const transactionExtensions = extensionRequests.filter(
+                  (request) => request.transaction_id === tx.id,
+                );
+                const pendingExtension = transactionExtensions.find(
+                  (request) => request.status === "pending",
+                );
+                const canRequestExtension = user?.role === "ci" && isActiveBorrow(tx) && !pendingExtension;
+
+                return (
+                  <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <p className="font-medium">{tx.inventory_items?.name}</p>
+                      <p className="text-xs text-muted-foreground">{tx.id.slice(0, 8)}</p>
+                    </td>
+                    <td className="px-5 py-3.5 text-muted-foreground">{tx.user_profiles?.name}</td>
+                    <td className="px-5 py-3.5">
+                      <span className="capitalize text-xs font-medium px-2 py-1 rounded-md bg-secondary">{tx.type}</span>
+                    </td>
+                    <td className="px-5 py-3.5 tabular-nums text-muted-foreground">{tx.borrow_date}</td>
+                    <td className="px-5 py-3.5 tabular-nums text-muted-foreground">
+                      {formatDueDate(tx.due_date, tx.due_at)}
+                    </td>
+                    <td className="px-5 py-3.5 text-center tabular-nums">{tx.quantity}</td>
+                    <td className="px-5 py-3.5 text-center">
+                      <StatusBadge status={getEffectiveStatus(tx)} />
+                      {transactionExtensions.map((request) => (
+                        <p
+                          key={request.id}
+                          className={`text-[11px] mt-1 ${request.status === "pending" ? "text-warning" : "text-muted-foreground"}`}
+                        >
+                          Extension {request.status}
+                          {request.approved_due_date
+                            ? ` → ${formatDueDate(request.approved_due_date, request.approved_due_at)}`
+                            : ""}
+                        </p>
+                      ))}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex flex-wrap items-center justify-end gap-1">
+                        {tx.status === "pending" && user?.role === "sa" && (
+                          <>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-success" onClick={() => handleApprove(tx.id)} title="Approve">
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => handleReject(tx.id)} title="Reject">
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                        {canRequestExtension && (
+                          <Button size="sm" variant="outline" onClick={() => handleRequestExtension(tx.id)}>
+                            <Clock3 className="h-4 w-4 mr-1" />
+                            +1 day
+                          </Button>
+                        )}
+                        {pendingExtension && user?.role === "sa" && (
+                          <>
+                            <Button size="sm" variant="outline" className="text-success" onClick={() => handleReviewExtension(pendingExtension.id, true)}>
+                              Approve +1d
+                            </Button>
+                            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleReviewExtension(pendingExtension.id, false)}>
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                        {isActiveBorrow(tx) && user?.role === "sa" && (
+                          <Button size="sm" variant="outline" onClick={() => handleReturn(tx.id)}>
+                            <RotateCcw className="h-4 w-4 mr-1" />
+                            Return
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
+
+      {filtered.length === 0 && !loading && (
+        <p className="text-center text-muted-foreground py-8">No transactions found.</p>
+      )}
     </div>
   );
 }

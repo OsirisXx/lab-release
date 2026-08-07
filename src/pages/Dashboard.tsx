@@ -2,7 +2,7 @@ import { Package, ArrowRightLeft, AlertTriangle, Clock, Loader2 } from "lucide-r
 import { StatCard } from "@/components/dashboard/StatCard";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useInventory } from "@/hooks/useInventory";
-import { useTransactions, isOverdue } from "@/hooks/useTransactions";
+import { useTransactions, getEffectiveStatus, isActiveBorrow, isOverdue } from "@/hooks/useTransactions";
 
 export default function Dashboard() {
   const { items, loading: itemsLoading } = useInventory();
@@ -31,7 +31,7 @@ export default function Dashboard() {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Items" value={totalItems} subtitle="Across all locations" icon={Package} variant="primary" delay={0} />
-        <StatCard title="Active Borrows" value={transactions.filter((t) => t.status === "approved").length} icon={ArrowRightLeft} delay={60} />
+        <StatCard title="Active Borrows" value={transactions.filter(isActiveBorrow).length} icon={ArrowRightLeft} delay={60} />
         <StatCard title="Pending Requests" value={pendingTx} icon={Clock} variant="warning" delay={120} />
         <StatCard title="Overdue Items" value={overdueTx} icon={AlertTriangle} variant="destructive" delay={180} />
       </div>
@@ -56,7 +56,7 @@ export default function Dashboard() {
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {new Date(tx.borrow_date).toLocaleDateString()}
                   </span>
-                  <StatusBadge status={tx.status} />
+                  <StatusBadge status={getEffectiveStatus(tx)} />
                 </div>
               </div>
             ))}

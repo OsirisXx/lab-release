@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { getApplicationDate, getDueAtForDate } from "@/lib/date-utils";
+
+export type ExtensionStatus = "pending" | "approved" | "rejected";
 
 export interface Transaction {
   id: string;
@@ -11,6 +14,9 @@ export interface Transaction {
   quantity: number;
   borrow_date: string;
   due_date: string;
+  due_at?: string | null;
+  reservation_id?: string | null;
+  stock_deducted?: boolean;
   return_date: string | null;
   created_at: string;
   updated_at: string;
@@ -18,18 +24,46 @@ export interface Transaction {
   inventory_items?: { name: string; location: string };
 }
 
-export function isOverdue(transaction: { status: string; due_date: string }): boolean {
+export interface ExtensionRequest {
+  id: string;
+  transaction_id: string;
+  requested_by: string;
+  reviewed_by: string | null;
+  requested_days: 1;
+  reason: string | null;
+  status: ExtensionStatus;
+  requested_at: string;
+  reviewed_at: string | null;
+  review_note: string | null;
+  previous_due_date: string | null;
+  previous_due_at: string | null;
+  approved_due_date: string | null;
+  approved_due_at: string | null;
+}
+
+export function isOverdue(transaction: { status: string; due_date: string; due_at?: string | null }): boolean {
+  if (transaction.status === "overdue") return true;
   if (transaction.status !== "approved") return false;
-  const today = new Date().toISOString().split("T")[0];
-  return transaction.due_date < today;
+
+  const dueAt = transaction.due_at
+    ? new Date(transaction.due_at)
+    : getDueAtForDate(transaction.due_date);
+
+  return dueAt.getTime() <= Date.now();
 }
 
 export function getEffectiveStatus(transaction: Transaction): string {
   return isOverdue(transaction) ? "overdue" : transaction.status;
 }
 
+export function isActiveBorrow(transaction: Transaction): boolean {
+  const status = getEffectiveStatus(transaction);
+  return status === "approved" || status === "overdue";
+}
+
 export function useTransactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [extensionRequests, setExtensionRequests] = useState<ExtensionRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
@@ -37,20 +71,27 @@ export function useTransactions() {
   useEffect(() => {
     fetchTransactions();
 
+    const refresh = () => fetchTransactions();
     const channel = supabase
       .channel("transaction_changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, () => {
-        fetchTransactions();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "extension_requests" }, refresh)
       .subscribe();
+    const interval = window.setInterval(refresh, 60_000);
 
     return () => {
+      window.clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, [user]);
 
   const fetchTransactions = async () => {
     try {
+      setError(null);
+      // This makes overdue status update while the app is open. The deployment
+      // cron also invokes the same function for transactions no one is viewing.
+      await supabase.rpc("mark_overdue_transactions");
+
       let query = supabase
         .from("transactions")
         .select(`
@@ -64,12 +105,26 @@ export function useTransactions() {
         query = query.eq("user_id", user.id);
       }
 
-      const { data, error } = await query;
+      let extensionQuery = supabase
+        .from("extension_requests")
+        .select("*")
+        .order("requested_at", { ascending: false });
+      if (user?.role === "ci") {
+        extensionQuery = extensionQuery.eq("requested_by", user.id);
+      }
 
-      if (error) throw error;
+      const [{ data, error: transactionError }, { data: extensionData, error: extensionError }] = await Promise.all([
+        query,
+        extensionQuery,
+      ]);
+
+      if (transactionError) throw transactionError;
+      if (extensionError) throw extensionError;
       setTransactions(data || []);
-    } catch (err: any) {
-      setError(err.message);
+      setExtensionRequests(extensionData || []);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to load transactions";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -86,8 +141,7 @@ export function useTransactions() {
       throw new Error("Cannot borrow new items while you have unreturned items");
     }
 
-    const borrowDate = new Date().toISOString().split("T")[0];
-    const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const borrowDate = getApplicationDate();
 
     const { data, error } = await supabase
       .from("transactions")
@@ -98,7 +152,8 @@ export function useTransactions() {
         status: "pending",
         quantity,
         borrow_date: borrowDate,
-        due_date: dueDate,
+        // Feature 1 changes normal borrowing to same-day return by default.
+        due_date: borrowDate,
       })
       .select()
       .single();
@@ -108,101 +163,88 @@ export function useTransactions() {
     await supabase.from("audit_logs").insert({
       user_id: user.id,
       action: "Submitted Borrow Request",
-      details: `Item ID: ${itemId}, Quantity: ${quantity}`,
+      details: `Item ID: ${itemId}, Quantity: ${quantity}, Due: ${borrowDate} 9:00 PM`,
       category: "transaction",
     });
 
-    // Immediately refetch to update UI
     await fetchTransactions();
-
     return data;
   };
 
   const approveTransaction = async (transactionId: string) => {
     if (user?.role !== "sa") throw new Error("Only Student Assistants can approve transactions");
 
-    const { data, error } = await supabase
-      .from("transactions")
-      .update({ status: "approved" })
-      .eq("id", transactionId)
-      .select()
-      .single();
-
+    const { data, error } = await supabase.rpc("approve_transaction", {
+      p_transaction_id: transactionId,
+    });
     if (error) throw error;
 
-    await supabase.from("audit_logs").insert({
-      user_id: user.id,
-      action: "Approved Borrow Request",
-      details: `Transaction ID: ${transactionId}`,
-      category: "transaction",
-    });
-
-    // Immediately refetch to update UI
     await fetchTransactions();
-
-    return data;
+    return data as Transaction;
   };
 
   const rejectTransaction = async (transactionId: string) => {
     if (user?.role !== "sa") throw new Error("Only Student Assistants can reject transactions");
 
-    const { data, error } = await supabase
-      .from("transactions")
-      .update({ status: "rejected" })
-      .eq("id", transactionId)
-      .select()
-      .single();
-
+    const { data, error } = await supabase.rpc("reject_transaction", {
+      p_transaction_id: transactionId,
+    });
     if (error) throw error;
 
-    await supabase.from("audit_logs").insert({
-      user_id: user.id,
-      action: "Rejected Borrow Request",
-      details: `Transaction ID: ${transactionId}`,
-      category: "transaction",
-    });
-
-    // Immediately refetch to update UI
     await fetchTransactions();
-
-    return data;
+    return data as Transaction;
   };
 
   const returnItem = async (transactionId: string) => {
     if (user?.role !== "sa") throw new Error("Only Student Assistants can process returns");
 
-    const returnDate = new Date().toISOString().split("T")[0];
-
-    const { data, error } = await supabase
-      .from("transactions")
-      .update({ status: "returned", return_date: returnDate })
-      .eq("id", transactionId)
-      .select()
-      .single();
-
+    const { data, error } = await supabase.rpc("return_transaction", {
+      p_transaction_id: transactionId,
+    });
     if (error) throw error;
 
-    await supabase.from("audit_logs").insert({
-      user_id: user.id,
-      action: "Processed Item Return",
-      details: `Transaction ID: ${transactionId}`,
-      category: "transaction",
-    });
-
-    // Immediately refetch to update UI
     await fetchTransactions();
+    return data as Transaction;
+  };
 
-    return data;
+  const requestExtension = async (transactionId: string, reason?: string) => {
+    if (user?.role !== "ci") throw new Error("Only Clinical Instructors can request extensions");
+
+    const { data, error } = await supabase.rpc("request_transaction_extension", {
+      p_transaction_id: transactionId,
+      p_reason: reason || null,
+    });
+    if (error) throw error;
+
+    await fetchTransactions();
+    return data as ExtensionRequest;
+  };
+
+  const reviewExtension = async (requestId: string, approve: boolean, reviewNote?: string) => {
+    if (user?.role !== "sa") throw new Error("Only Student Assistants can review extensions");
+
+    const { data, error } = await supabase.rpc("review_transaction_extension", {
+      p_request_id: requestId,
+      p_approve: approve,
+      p_review_note: reviewNote || null,
+    });
+    if (error) throw error;
+
+    await fetchTransactions();
+    return data as ExtensionRequest;
   };
 
   return {
     transactions,
+    extensionRequests,
     loading,
     error,
     createBorrowRequest,
     approveTransaction,
     rejectTransaction,
     returnItem,
+    requestExtension,
+    reviewExtension,
     refetch: fetchTransactions,
   };
 }

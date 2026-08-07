@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { addCalendarDays, getApplicationDate } from "@/lib/date-utils";
 
 export interface Reservation {
   id: string;
@@ -8,8 +9,11 @@ export interface Reservation {
   item_id: string;
   start_date: string;
   end_date: string;
-  status: "pending" | "approved" | "rejected" | "completed";
+  status: "pending" | "approved" | "rejected" | "completed" | "cancelled" | "expired" | "failed";
   quantity: number;
+  stock_held_quantity: number;
+  issued_transaction_id: string | null;
+  issued_at: string | null;
   created_at: string;
   user_profiles?: { name: string; email: string; ci_id: string | null };
   inventory_items?: { name: string; location: string };
@@ -38,6 +42,10 @@ export function useReservations() {
 
   const fetchReservations = async () => {
     try {
+      // SA sessions can process reservations immediately; the Vercel cron is
+      // the background fallback when nobody is viewing the app.
+      await supabase.rpc("process_due_reservations");
+
       let query = supabase
         .from("reservations")
         .select(`
@@ -55,8 +63,8 @@ export function useReservations() {
 
       if (error) throw error;
       setReservations(data || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load reservations");
     } finally {
       setLoading(false);
     }
@@ -65,82 +73,63 @@ export function useReservations() {
   const createReservation = async (itemId: string, startDate: string, endDate: string, quantity: number) => {
     if (!user) throw new Error("Must be logged in");
 
-    const { data, error } = await supabase
-      .from("reservations")
-      .insert({
-        user_id: user.id,
-        item_id: itemId,
-        start_date: startDate,
-        end_date: endDate,
-        quantity,
-        status: "pending",
-      })
-      .select()
-      .single();
+    const minimumDate = addCalendarDays(getApplicationDate(), 2);
+    if (startDate < minimumDate) {
+      throw new Error(`Reservations must start on or after ${minimumDate} (at least 2 calendar days from today)`);
+    }
+    if (endDate < startDate) {
+      throw new Error("Reservation end date cannot be before the start date");
+    }
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      throw new Error("Reservation quantity must be greater than zero");
+    }
 
-    if (error) throw error;
-
-    await supabase.from("audit_logs").insert({
-      user_id: user.id,
-      action: "Created Reservation",
-      details: `Item ID: ${itemId}, Dates: ${startDate} to ${endDate}`,
-      category: "transaction",
+    const { data, error } = await supabase.rpc("create_reservation", {
+      p_item_id: itemId,
+      p_start_date: startDate,
+      p_end_date: endDate,
+      p_quantity: quantity,
     });
 
-    // Immediately refetch to update UI
+    if (error) throw error;
     await fetchReservations();
-
-    return data;
+    return data as Reservation;
   };
 
   const approveReservation = async (reservationId: string) => {
     if (user?.role !== "sa") throw new Error("Only Student Assistants can approve reservations");
 
-    const { data, error } = await supabase
-      .from("reservations")
-      .update({ status: "approved" })
-      .eq("id", reservationId)
-      .select()
-      .single();
-
+    const { data, error } = await supabase.rpc("approve_reservation", {
+      p_reservation_id: reservationId,
+    });
     if (error) throw error;
 
-    await supabase.from("audit_logs").insert({
-      user_id: user.id,
-      action: "Approved Reservation",
-      details: `Reservation ID: ${reservationId}`,
-      category: "transaction",
-    });
-
-    // Immediately refetch to update UI
     await fetchReservations();
-
-    return data;
+    return data as Reservation;
   };
 
   const rejectReservation = async (reservationId: string) => {
     if (user?.role !== "sa") throw new Error("Only Student Assistants can reject reservations");
 
-    const { data, error } = await supabase
-      .from("reservations")
-      .update({ status: "rejected" })
-      .eq("id", reservationId)
-      .select()
-      .single();
-
+    const { data, error } = await supabase.rpc("reject_reservation", {
+      p_reservation_id: reservationId,
+    });
     if (error) throw error;
 
-    await supabase.from("audit_logs").insert({
-      user_id: user.id,
-      action: "Rejected Reservation",
-      details: `Reservation ID: ${reservationId}`,
-      category: "transaction",
-    });
-
-    // Immediately refetch to update UI
     await fetchReservations();
+    return data as Reservation;
+  };
 
-    return data;
+  const cancelReservation = async (reservationId: string) => {
+    if (!user) throw new Error("Must be logged in");
+
+    const { data, error } = await supabase.rpc("cancel_reservation", {
+      p_reservation_id: reservationId,
+    });
+    if (error) throw error;
+
+    await fetchReservations();
+    return data as Reservation;
   };
 
   return {
@@ -150,6 +139,7 @@ export function useReservations() {
     createReservation,
     approveReservation,
     rejectReservation,
+    cancelReservation,
     refetch: fetchReservations,
   };
 }

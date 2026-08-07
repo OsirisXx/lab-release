@@ -61,6 +61,37 @@ Done! Your database is ready.
 **Error: "duplicate key value"**
 - You already ran this script. Skip it or clear the table first.
 
+## Existing deployment migrations
+
+For an existing deployment that already ran the base scripts, apply migrations 04 through 08 in order:
+
+1. `04-delete-user-function.sql`
+2. `05-rename-total-stock.sql`
+3. `06-add-equipment-to-rle-guides.sql`
+4. `07-fix-user-delete-audit.sql`
+5. `08-overdue-extensions.sql`
+6. `10-reservation-stock-holds.sql`
+
+After `08-overdue-extensions.sql` succeeds, the optional Feature 1 seed is `09-feature-1-test-data.sql` and its matching cleanup is `09-remove-feature-1-test-data.sql`.
+
 ## 7. User Delete Repair (07-fix-user-delete-audit.sql)
 
 Run this migration on existing deployments after the previous scripts. It repairs the audit-log and RLE-guide foreign keys and replaces the user deletion function so the audit entry is written before deletion, self-deletion is rejected, and only the authenticated Student Assistant can perform the action.
+
+## 8. Overdue and Extension Migration (08-overdue-extensions.sql)
+
+Run this on an existing deployment after `07-fix-user-delete-audit.sql`. It adds the 9:00 PM due timestamp, same-day overdue processing, extension request history, and the CI/SA extension RPCs. The migration assumes the application timezone is `Asia/Manila`.
+
+The Vercel cron also needs the server-only `SUPABASE_SERVICE_ROLE_KEY` environment variable to mark overdue transactions when no user is active in the app.
+
+## Feature 1 Test Data (optional and reversible)
+
+Only run `09-feature-1-test-data.sql` after the Feature 1 migration has succeeded and after recording the target database/run date. It creates four inventory items with `FEATURE1-TEST-*` item codes, three transactions linked to the earliest existing CI profile, one pending extension request, and one marked audit entry. These records are intentionally fake and should not be mixed with real inventory.
+
+Remove only those records with `09-remove-feature-1-test-data.sql`. The cleanup script targets the unique test item codes and `[FEATURE1-TEST]` audit marker; it does not delete ordinary inventory or transactions.
+
+## 10. Reservation Window and Stock Holds (`10-reservation-stock-holds.sql`)
+
+Run this after `08-overdue-extensions.sql` on an existing deployment. It enforces a minimum reservation start date of two local calendar days ahead, holds stock immediately with a row lock, releases held stock on rejection/cancellation/expiry, and automatically issues approved reservations on their start date without deducting the held quantity twice. It also hardens normal borrow approval with a locked stock check.
+
+The Vercel cron uses `process_due_reservations()` when `SUPABASE_SERVICE_ROLE_KEY` is configured. The reversible test fixture is `10-feature-2-test-data.sql`; run it only in the intended test database, exercise the reservation through the UI, and remove it with `10-remove-feature-2-test-data.sql` after testing.

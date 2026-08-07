@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useInventory } from "@/hooks/useInventory";
 import { useTransactions } from "@/hooks/useTransactions";
+import { getApplicationDate, formatDueDate } from "@/lib/date-utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
@@ -416,7 +417,7 @@ export default function Inventory() {
             </div>
             <div className="bg-muted/50 p-3 rounded-md">
               <p className="text-xs text-muted-foreground">Due Date</p>
-              <p className="text-sm font-medium">{new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString()} (7 days)</p>
+              <p className="text-sm font-medium">{formatDueDate(getApplicationDate())}</p>
             </div>
           </div>
           <DialogFooter>

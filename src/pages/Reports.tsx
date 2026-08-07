@@ -3,7 +3,7 @@ import { BarChart3, TrendingUp, Package, ArrowRightLeft, AlertTriangle, Download
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { useInventory } from "@/hooks/useInventory";
-import { useTransactions, isOverdue } from "@/hooks/useTransactions";
+import { useTransactions, getEffectiveStatus, isActiveBorrow, isOverdue } from "@/hooks/useTransactions";
 import { toast } from "sonner";
 import * as XLSX from 'xlsx-js-style';
 
@@ -50,7 +50,7 @@ export default function Reports() {
         ['Maintaining Stock', totalMaintainingStock],
         ['Available Stock', totalAvailableStock],
         ['Borrowed Items', totalBorrowedItems],
-        ['Active Borrows', transactions.filter(t => t.status === 'approved').length],
+        ['Active Borrows', transactions.filter(isActiveBorrow).length],
         ['Pending Requests', transactions.filter(t => t.status === 'pending').length],
         ['Completed Returns', transactions.filter(t => t.status === 'returned').length],
         ['Overdue Items', transactions.filter(isOverdue).length],
@@ -89,7 +89,7 @@ export default function Reports() {
             tx.inventory_items?.name || 'Unknown',
             tx.type === 'borrow' ? 'Borrow' : 'Return',
             tx.quantity,
-            tx.status.charAt(0).toUpperCase() + tx.status.slice(1)
+            getEffectiveStatus(tx).charAt(0).toUpperCase() + getEffectiveStatus(tx).slice(1)
           ];
         }),
         [],
@@ -193,7 +193,7 @@ export default function Reports() {
             tx.inventory_items?.name || 'Unknown',
             tx.type === 'borrow' ? 'Borrow' : tx.type === 'reserve' ? 'Reserve' : 'Return',
             tx.quantity,
-            tx.status.charAt(0).toUpperCase() + tx.status.slice(1),
+            getEffectiveStatus(tx).charAt(0).toUpperCase() + getEffectiveStatus(tx).slice(1),
           ];
         }),
       ]);
@@ -265,7 +265,7 @@ export default function Reports() {
   const availableStock = items.reduce((sum, item) => sum + item.stock_available, 0);
   const borrowedItems = totalStock - availableStock;
 
-  const activeBorrows = transactions.filter((t) => t.status === "approved").length;
+  const activeBorrows = transactions.filter(isActiveBorrow).length;
   const completedReturns = transactions.filter((t) => t.status === "returned").length;
   const overdueItems = transactions.filter(isOverdue).length;
   const pendingRequests = transactions.filter((t) => t.status === "pending").length;

@@ -101,7 +101,7 @@ async function checkDatabase() {
       if (items && items.length > 0) {
         console.log(`  📝 Sample items:`);
         items.slice(0, 3).forEach(item => {
-          console.log(`     - ${item.name} (${item.stock_available}/${item.stock_total} available)`);
+          console.log(`     - ${item.name} (${item.stock_available}/${item.maintaining_stock} available)`);
         });
         
         // Check for recently added items
