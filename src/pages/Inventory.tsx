@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useInventory } from "@/hooks/useInventory";
 import { useTransactions } from "@/hooks/useTransactions";
-import { getApplicationDate, formatDueDate } from "@/lib/date-utils";
+import { addCalendarDays, getApplicationDate, formatDueDate } from "@/lib/date-utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
@@ -73,7 +73,7 @@ export default function Inventory() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="flex h-full min-h-0 flex-col space-y-6 overflow-hidden">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Inventory/Borrowing</h1>
@@ -109,16 +109,16 @@ export default function Inventory() {
       </div>
 
       {/* Table */}
-      <div className="bg-card rounded-lg border overflow-hidden animate-slide-up" style={{ animationDelay: "120ms", animationFillMode: "both" }}>
+      <div className="bg-card flex min-h-0 flex-1 flex-col rounded-lg border overflow-hidden animate-slide-up" style={{ animationDelay: "120ms", animationFillMode: "both" }}>
         {loading ? (
-          <div className="flex items-center justify-center py-16">
+          <div className="flex min-h-0 flex-1 items-center justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-muted/50">
+          <div className="min-h-0 flex-1 overflow-auto">
+            <table className="min-w-[900px] w-full text-sm">
+          <thead className="sticky top-0 z-10 bg-sidebar">
+            <tr className="border-b border-sidebar-border bg-sidebar [&>th]:text-sidebar-foreground">
               <th className="text-left px-5 py-3 font-medium text-muted-foreground">Item</th>
               <th className="text-left px-5 py-3 font-medium text-muted-foreground">Category</th>
               <th className="text-left px-5 py-3 font-medium text-muted-foreground">Location</th>
@@ -235,7 +235,7 @@ export default function Inventory() {
             <p className="text-sm mt-1">Try adjusting your search or filters</p>
           </div>
         )}
-          </>
+          </div>
         )}
       </div>
 
@@ -394,12 +394,12 @@ export default function Inventory() {
 
       {/* Borrow Dialog */}
       <Dialog open={isBorrowDialogOpen} onOpenChange={setIsBorrowDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-none" style={{ width: "min(90vw, 48rem)", maxWidth: "none" }}>
           <DialogHeader>
             <DialogTitle>Borrow Request</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
+          <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-3">
+            <div className="sm:col-span-3">
               <Label>Item</Label>
               <p className="text-sm font-medium mt-1.5">{selectedItem?.name}</p>
               <p className="text-xs text-muted-foreground">Available: {selectedItem?.stock_available} {selectedItem?.unit}</p>
@@ -415,15 +415,20 @@ export default function Inventory() {
                 onChange={(e) => setBorrowQuantity(parseInt(e.target.value) || 1)}
               />
             </div>
-            <div className="bg-muted/50 p-3 rounded-md">
+            <div className="sm:col-span-2 bg-muted/50 p-3 rounded-md">
               <p className="text-xs text-muted-foreground">Due Date</p>
-              <p className="text-sm font-medium">{formatDueDate(getApplicationDate())}</p>
+              <p className="text-sm font-medium">{formatDueDate(addCalendarDays(getApplicationDate(), 2))}</p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsBorrowDialogOpen(false)}>Cancel</Button>
             <Button onClick={async () => {
               try {
+                if (!selectedItem) return;
+                if (borrowQuantity > selectedItem.stock_available) {
+                  toast.error(`Only ${selectedItem.stock_available} unit(s) of ${selectedItem.name} are available`);
+                  return;
+                }
                 await createBorrowRequest(selectedItem.id, borrowQuantity);
                 toast.success("Borrow request submitted");
                 setIsBorrowDialogOpen(false);

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, Search, FileText, Plus, Edit2, Trash2, X, Loader2, ShoppingCart, Package, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { BookOpen, Search, FileText, Plus, Edit2, Trash2, Loader2, ShoppingCart, Package, CheckCircle, XCircle, AlertCircle, ListChecks, Eraser } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRleGuides } from "@/hooks/useRleGuides";
@@ -16,18 +16,27 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { addCalendarDays, getApplicationDate, formatDueDate } from "@/lib/date-utils";
 
 export default function RleGuide() {
   const { guides, loading, createGuide, updateGuide, deleteGuide } = useRleGuides();
   const { items } = useInventory();
-  const { createBorrowRequest } = useTransactions();
+  const { createBorrowRequest, createBulkBorrowRequests } = useTransactions();
   const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isBorrowDialogOpen, setIsBorrowDialogOpen] = useState(false);
+  const [isBulkBorrowDialogOpen, setIsBulkBorrowDialogOpen] = useState(false);
   const [editingGuide, setEditingGuide] = useState<any>(null);
   const [selectedEquipment, setSelectedEquipment] = useState<any>(null);
+  const [bulkBorrowGuideId, setBulkBorrowGuideId] = useState<string | null>(null);
+  const [bulkBorrowItems, setBulkBorrowItems] = useState<any[]>([]);
+  const [bulkBorrowQuantities, setBulkBorrowQuantities] = useState<Record<string, number>>({});
+  const [markedEquipmentByGuide, setMarkedEquipmentByGuide] = useState<Record<string, string[]>>({});
+  const [isDeleteMarkDialogOpen, setIsDeleteMarkDialogOpen] = useState(false);
+  const [deleteMarkGuideId, setDeleteMarkGuideId] = useState<string | null>(null);
+  const [deleteMarkItems, setDeleteMarkItems] = useState<any[]>([]);
   const [borrowQuantity, setBorrowQuantity] = useState(1);
   const [formData, setFormData] = useState({
     year_level: "1st Year" as any,
@@ -39,6 +48,99 @@ export default function RleGuide() {
   const [selectedEquipmentItems, setSelectedEquipmentItems] = useState<string[]>([]);
   const [equipmentSearch, setEquipmentSearch] = useState("");
 
+  const getAvailableEquipmentForGuide = (guide: any) => {
+    const seen = new Set<string>();
+    return guide.equipment
+      .map((equipmentName: string) => items.find((item) => item.name.toLowerCase() === equipmentName.toLowerCase()))
+      .filter((item: any) => {
+        if (!item || item.stock_available <= 0 || seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+  };
+
+  const toggleMarkedEquipment = (guideId: string, itemId: string, checked: boolean) => {
+    setMarkedEquipmentByGuide((current) => {
+      const marked = current[guideId] || [];
+      return {
+        ...current,
+        [guideId]: checked
+          ? marked.includes(itemId) ? marked : [...marked, itemId]
+          : marked.filter((id) => id !== itemId),
+      };
+    });
+  };
+
+  const handleMarkAll = (guide: any) => {
+    setMarkedEquipmentByGuide((current) => ({
+      ...current,
+      [guide.id]: getAvailableEquipmentForGuide(guide).map((item: any) => item.id),
+    }));
+  };
+
+  const handleDeleteMark = (guide: any) => {
+    const markedIds = markedEquipmentByGuide[guide.id] || [];
+    if (markedIds.length === 0) {
+      toast.error("Mark at least one item before deleting marks");
+      return;
+    }
+    const markedItems = markedIds
+      .map((itemId: string) => items.find((item) => item.id === itemId))
+      .filter(Boolean);
+    setDeleteMarkGuideId(guide.id);
+    setDeleteMarkItems(markedItems);
+    setIsDeleteMarkDialogOpen(true);
+  };
+
+  const handleDeleteMarkDialogChange = (open: boolean) => {
+    setIsDeleteMarkDialogOpen(open);
+    if (!open) {
+      setDeleteMarkGuideId(null);
+      setDeleteMarkItems([]);
+    }
+  };
+
+  const handleOpenBulkBorrow = (guide: any) => {
+    const markedIds = markedEquipmentByGuide[guide.id] || [];
+    const selected = getAvailableEquipmentForGuide(guide).filter((item: any) => markedIds.includes(item.id));
+    if (selected.length === 0) {
+      toast.error("Mark at least one available item first");
+      return;
+    }
+    setBulkBorrowGuideId(guide.id);
+    setBulkBorrowItems(selected);
+    setBulkBorrowQuantities(Object.fromEntries(selected.map((item: any) => [item.id, 1])));
+    setIsBulkBorrowDialogOpen(true);
+  };
+
+  const handleBulkBorrow = async () => {
+    try {
+      const invalidRequest = bulkBorrowItems.find((item: any) => {
+        const quantity = bulkBorrowQuantities[item.id] || 1;
+        return quantity > item.stock_available;
+      });
+      if (invalidRequest) {
+        const quantity = bulkBorrowQuantities[invalidRequest.id] || 1;
+        toast.error(`Only ${invalidRequest.stock_available} unit(s) of ${invalidRequest.name} are available; requested ${quantity}`);
+        return;
+      }
+      const requests = bulkBorrowItems.map((item: any) => ({
+        itemId: item.id,
+        quantity: bulkBorrowQuantities[item.id] || 1,
+      }));
+      const created = await createBulkBorrowRequests(requests);
+      toast.success(`${created.length} borrow request${created.length === 1 ? "" : "s"} submitted`);
+      if (bulkBorrowGuideId) {
+        setMarkedEquipmentByGuide((current) => ({ ...current, [bulkBorrowGuideId]: [] }));
+      }
+      setIsBulkBorrowDialogOpen(false);
+      setBulkBorrowItems([]);
+      setBulkBorrowGuideId(null);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to submit bulk borrow request");
+    }
+  };
+
   const filtered = guides.filter((guide) => {
     const matchesSearch =
       guide.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -47,6 +149,8 @@ export default function RleGuide() {
     const matchesYear = selectedYear === "all" || guide.year_level === selectedYear;
     return matchesSearch && matchesYear;
   });
+
+
 
   const handleOpenDialog = (guide?: any) => {
     if (guide) {
@@ -208,7 +312,40 @@ export default function RleGuide() {
 
               {guide.equipment && guide.equipment.length > 0 && (
                 <div className="mb-4">
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Suggested Equipment</p>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <p className="text-xs font-medium text-muted-foreground">Suggested Equipment</p>
+                    {user?.role === "ci" && (
+                      <div className="flex flex-wrap justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => handleMarkAll(guide)}
+                        >
+                          <ListChecks className="h-3 w-3 mr-1" />
+                          Mark All
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs"
+                          onClick={() => handleDeleteMark(guide)}
+                        >
+                          <Eraser className="h-3 w-3 mr-1" />
+                          Delete Mark
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs"
+                          disabled={(markedEquipmentByGuide[guide.id] || []).length === 0}
+                          onClick={() => handleOpenBulkBorrow(guide)}
+                        >
+                          <ShoppingCart className="h-3 w-3 mr-1" />
+                          Borrow Marked ({(markedEquipmentByGuide[guide.id] || []).length})
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     {guide.equipment.map((equipmentName, idx) => {
                       const inventoryItem = items.find(item => 
@@ -220,6 +357,15 @@ export default function RleGuide() {
                       return (
                         <div key={`${guide.id}-${equipmentName}-${idx}`} className="flex items-center justify-between p-2 rounded-md bg-muted/50 hover:bg-muted transition-colors">
                           <div className="flex items-center gap-2">
+                            {user?.role === "ci" && inventoryItem && isAvailable && (
+                              <input
+                                type="checkbox"
+                                aria-label={`Mark ${equipmentName}`}
+                                checked={(markedEquipmentByGuide[guide.id] || []).includes(inventoryItem.id)}
+                                onChange={(event) => toggleMarkedEquipment(guide.id, inventoryItem.id, event.target.checked)}
+                                className="h-4 w-4 rounded border-input"
+                              />
+                            )}
                             <Package className="h-4 w-4 text-muted-foreground" />
                             <span className="text-sm">{equipmentName}</span>
                           </div>
@@ -381,14 +527,55 @@ export default function RleGuide() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Mark Dialog */}
+      <Dialog open={isDeleteMarkDialogOpen} onOpenChange={handleDeleteMarkDialogChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Marked Equipment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <p className="text-sm text-muted-foreground">
+              Uncheck the equipment you want to remove from the marked list for this RLE procedure.
+            </p>
+            {deleteMarkItems.length === 0 ? (
+              <p className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+                No equipment is currently marked.
+              </p>
+            ) : (
+              <div className="max-h-64 space-y-2 overflow-y-auto">
+                {deleteMarkItems.map((item: any) => (
+                  <label key={item.id} className="flex cursor-pointer items-center gap-3 rounded-md border p-3 hover:bg-muted/50">
+                    <input
+                      type="checkbox"
+                      checked={deleteMarkGuideId ? (markedEquipmentByGuide[deleteMarkGuideId] || []).includes(item.id) : false}
+                      onChange={(event) => {
+                        if (deleteMarkGuideId) {
+                          toggleMarkedEquipment(deleteMarkGuideId, item.id, event.target.checked);
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <span className="text-sm">{item.name}</span>
+                    <span className="ml-auto text-xs text-muted-foreground">{item.stock_available} available</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => handleDeleteMarkDialogChange(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Borrow Dialog */}
       <Dialog open={isBorrowDialogOpen} onOpenChange={setIsBorrowDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-none" style={{ width: "min(90vw, 48rem)", maxWidth: "none" }}>
           <DialogHeader>
             <DialogTitle>Borrow Equipment</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
+          <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-3">
+            <div className="sm:col-span-3">
               <Label>Item</Label>
               <p className="text-sm font-medium mt-1">{selectedEquipment?.name}</p>
             </div>
@@ -407,6 +594,10 @@ export default function RleGuide() {
                 onChange={(e) => setBorrowQuantity(parseInt(e.target.value) || 1)}
               />
             </div>
+            <div className="sm:col-span-2 bg-muted/50 p-3 rounded-md">
+              <p className="text-xs text-muted-foreground">Due Date</p>
+              <p className="text-sm font-medium">{formatDueDate(addCalendarDays(getApplicationDate(), 2))}</p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsBorrowDialogOpen(false)}>Cancel</Button>
@@ -414,6 +605,10 @@ export default function RleGuide() {
               onClick={async () => {
                 try {
                   if (!selectedEquipment) return;
+                  if (borrowQuantity > selectedEquipment.stock_available) {
+                    toast.error(`Only ${selectedEquipment.stock_available} unit(s) of ${selectedEquipment.name} are available`);
+                    return;
+                  }
                   await createBorrowRequest(selectedEquipment.id, borrowQuantity);
                   toast.success('Borrow request submitted successfully');
                   setIsBorrowDialogOpen(false);
@@ -426,6 +621,52 @@ export default function RleGuide() {
             >
               Submit Request
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Borrow Dialog */}
+      <Dialog open={isBulkBorrowDialogOpen} onOpenChange={setIsBulkBorrowDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Borrow Marked Equipment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Submit the marked equipment as one RLE borrow request. The Student Assistant will tag accompanying students when approving each transaction.
+            </p>
+            <div className="bg-muted/50 p-3 rounded-md">
+              <p className="text-xs text-muted-foreground">Due Date for All Requests</p>
+              <p className="text-sm font-medium">{formatDueDate(addCalendarDays(getApplicationDate(), 2))}</p>
+            </div>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {bulkBorrowItems.map((item: any) => (
+                <div key={item.id} className="grid grid-cols-[1fr_7rem] gap-3 items-center border rounded-md p-3">
+                  <div>
+                    <p className="text-sm font-medium">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">Available: {item.stock_available} {item.unit}</p>
+                  </div>
+                  <div>
+                    <Label htmlFor={`bulk-quantity-${item.id}`} className="text-xs">Quantity</Label>
+                    <Input
+                      id={`bulk-quantity-${item.id}`}
+                      type="number"
+                      min={1}
+                      max={item.stock_available}
+                      value={bulkBorrowQuantities[item.id] || 1}
+                      onChange={(event) => setBulkBorrowQuantities((current) => ({
+                        ...current,
+                        [item.id]: parseInt(event.target.value) || 1,
+                      }))}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBulkBorrowDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleBulkBorrow}>Submit Bulk Request</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

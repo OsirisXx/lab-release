@@ -93,6 +93,15 @@ export default function Reservations() {
         toast.error("Reservation end date cannot be before the start date");
         return;
       }
+      const selectedItem = items.find((item) => item.id === formData.item_id);
+      if (!selectedItem) {
+        toast.error("Selected inventory item could not be found");
+        return;
+      }
+      if (formData.quantity > selectedItem.stock_available) {
+        toast.error(`Only ${selectedItem.stock_available} unit(s) of ${selectedItem.name} are available`);
+        return;
+      }
       await createReservation(
         formData.item_id,
         formData.start_date,
@@ -300,6 +309,7 @@ export default function Reservations() {
                 id="quantity"
                 type="number"
                 min={1}
+                max={items.find((item) => item.id === formData.item_id)?.stock_available || 1}
                 value={formData.quantity}
                 onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
               />

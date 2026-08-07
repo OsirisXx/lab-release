@@ -1,13 +1,18 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
-import { getApplicationDate, getDueAtForDate } from "@/lib/date-utils";
+import { getDueAtForDate } from "@/lib/date-utils";
 
 export type ExtensionStatus = "pending" | "approved" | "rejected";
 
 export interface StudentTagInput {
   name: string;
   student_number?: string;
+}
+
+export interface BulkBorrowRequest {
+  itemId: string;
+  quantity: number;
 }
 
 export interface StudentTag {
@@ -151,44 +156,39 @@ export function useTransactions() {
   };
 
   const createBorrowRequest = async (itemId: string, quantity: number) => {
-    if (!user) throw new Error("Must be logged in");
-
-    const { data: hasUnreturned } = await supabase.rpc("has_unreturned_items", {
-      p_user_id: user.id,
-    });
-
-    if (hasUnreturned) {
-      throw new Error("Cannot borrow new items while you have unreturned items");
+    if (user?.role !== "ci") throw new Error("Only Clinical Instructors can submit borrow requests");
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      throw new Error("Borrow quantity must be greater than zero");
     }
 
-    const borrowDate = getApplicationDate();
-
-    const { data, error } = await supabase
-      .from("transactions")
-      .insert({
-        user_id: user.id,
-        item_id: itemId,
-        type: "borrow",
-        status: "pending",
-        quantity,
-        borrow_date: borrowDate,
-        // Feature 1 changes normal borrowing to same-day return by default.
-        due_date: borrowDate,
-      })
-      .select()
-      .single();
-
+    const { data, error } = await supabase.rpc("create_borrow_request", {
+      p_item_id: itemId,
+      p_quantity: quantity,
+    });
     if (error) throw error;
 
-    await supabase.from("audit_logs").insert({
-      user_id: user.id,
-      action: "Submitted Borrow Request",
-      details: `Item ID: ${itemId}, Quantity: ${quantity}, Due: ${borrowDate} 9:00 PM`,
-      category: "transaction",
+    await fetchTransactions();
+    return data as Transaction;
+  };
+
+  const createBulkBorrowRequests = async (requests: BulkBorrowRequest[]) => {
+    if (user?.role !== "ci") throw new Error("Only Clinical Instructors can submit bulk borrow requests");
+    if (requests.length === 0) throw new Error("Select at least one item");
+    if (requests.some((request) => !request.itemId || !Number.isInteger(request.quantity) || request.quantity <= 0)) {
+      throw new Error("Each selected item must have a valid quantity");
+    }
+    if (new Set(requests.map((request) => request.itemId)).size !== requests.length) {
+      throw new Error("An item cannot be selected more than once");
+    }
+
+    const { data, error } = await supabase.rpc("create_bulk_borrow_requests", {
+      p_item_ids: requests.map((request) => request.itemId),
+      p_quantities: requests.map((request) => request.quantity),
     });
+    if (error) throw error;
 
     await fetchTransactions();
-    return data;
+    return data as Transaction[];
   };
 
   const approveTransaction = async (transactionId: string, studentTags: StudentTagInput[]) => {
@@ -269,6 +269,7 @@ export function useTransactions() {
     loading,
     error,
     createBorrowRequest,
+    createBulkBorrowRequests,
     approveTransaction,
     rejectTransaction,
     returnItem,

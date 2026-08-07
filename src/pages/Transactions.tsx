@@ -120,7 +120,7 @@ export default function Transactions() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="flex h-full min-h-0 flex-col space-y-6 overflow-hidden">
       <div>
         <h1 className="text-2xl font-bold">Transactions</h1>
         <p className="text-muted-foreground mt-1">Manage borrow, return, overdue, and extension requests</p>
@@ -150,7 +150,7 @@ export default function Transactions() {
         </div>
       </div>
 
-      <div className="bg-card rounded-lg border overflow-hidden animate-slide-up" style={{ animationDelay: "100ms", animationFillMode: "both" }}>
+      <div className="bg-card flex max-h-[30%] shrink-0 flex-col rounded-lg border overflow-hidden animate-slide-up" style={{ animationDelay: "100ms", animationFillMode: "both" }}>
         <div className="p-5 border-b">
           <h2 className="font-semibold">Reservation Schedule</h2>
           <p className="text-sm text-muted-foreground mt-1">Reserved equipment and the period it is needed</p>
@@ -160,7 +160,7 @@ export default function Transactions() {
         ) : filteredReservations.length === 0 ? (
           <div className="px-5 py-6 text-sm text-muted-foreground">No reservations match the current search.</div>
         ) : (
-          <div className="divide-y">
+          <div className="min-h-0 flex-1 overflow-auto divide-y">
             {filteredReservations.map((reservation) => (
               <div key={reservation.id} className="px-5 py-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -186,15 +186,16 @@ export default function Transactions() {
         )}
       </div>
 
-      <div className="bg-card rounded-lg border overflow-hidden animate-slide-up" style={{ animationDelay: "120ms", animationFillMode: "both" }}>
+      <div className="bg-card flex min-h-0 flex-1 flex-col rounded-lg border overflow-hidden animate-slide-up" style={{ animationDelay: "120ms", animationFillMode: "both" }}>
         {loading ? (
-          <div className="flex items-center justify-center py-16">
+          <div className="flex min-h-0 flex-1 items-center justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
+          <div className="min-h-0 flex-1 overflow-auto">
+            <table className="min-w-[1100px] w-full text-sm">
+            <thead className="sticky top-0 z-10 bg-sidebar">
+              <tr className="border-b border-sidebar-border bg-sidebar [&>th]:text-sidebar-foreground">
                 <th className="text-left px-5 py-3 font-medium text-muted-foreground">Transaction</th>
                 <th className="text-left px-5 py-3 font-medium text-muted-foreground">User</th>
                 <th className="text-left px-5 py-3 font-medium text-muted-foreground">Type</th>
@@ -288,6 +289,7 @@ export default function Transactions() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

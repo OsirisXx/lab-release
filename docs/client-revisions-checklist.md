@@ -9,7 +9,7 @@ Use this checklist sequentially. A feature is only complete when its database be
 - Reserved stock is held immediately when the SA creates the reservation.
 - Extensions are granted by the SA one day at a time.
 - Students are not currently registered system users; student tags will initially be captured as borrowing records.
-- RLE Mark All/Delete Mark refers to selecting and clearing selected equipment under an RLE procedure.
+- RLE Mark All selects every available equipment item under an RLE procedure; Delete Mark enters a mode for unmarking selected items individually.
 
 ## Confirmed automatic issue behavior
 
@@ -26,7 +26,7 @@ Use this checklist sequentially. A feature is only complete when its database be
 ### Analysis and data model
 
 - [ ] Confirm the application's canonical local timezone.
-- [ ] Replace the seven-day due-date rule with a due timestamp at 9:00 PM on the approved due date.
+- [x] Replace the seven-day due-date rule with a due timestamp at 9:00 PM two local calendar days after a regular borrow is requested/approved.
 - [ ] Decide whether to store `due_at` directly or derive it from `due_date` plus a fixed 9:00 PM time.
 - [ ] Add extension request/history data with requester, approver, decision, old due date, new due date, and audit timestamps.
 
@@ -118,10 +118,10 @@ Use this checklist sequentially. A feature is only complete when its database be
 
 ## Feature 5 — RLE Mark All and Delete Mark
 
-- [ ] Confirm the final labels: `Mark All` and `Delete Mark`/clear selection.
+- [x] Confirm the final labels: `Mark All`, `Delete Mark`, and modal `Done`.
 - [ ] Add bulk selection state for equipment under the selected RLE procedure.
 - [ ] Add a Mark All action.
-- [ ] Add a Delete Mark action that clears all selected equipment.
+- [x] Add a Delete Mark mode with individual unmark controls for selected equipment.
 - [ ] Preserve individual selection and deselection.
 - [ ] Add a bulk Borrow/Request action for selected equipment.
 - [ ] Validate each selected item's stock before creating requests.

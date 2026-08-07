@@ -63,7 +63,7 @@ Done! Your database is ready.
 
 ## Existing deployment migrations
 
-For an existing deployment that already ran the base scripts, apply migrations 04 through 08 in order:
+For an existing deployment that already ran the base scripts, apply these migrations in order:
 
 1. `04-delete-user-function.sql`
 2. `05-rename-total-stock.sql`
@@ -72,6 +72,10 @@ For an existing deployment that already ran the base scripts, apply migrations 0
 5. `08-overdue-extensions.sql`
 6. `10-reservation-stock-holds.sql`
 7. `11-sa-reservation-ci-tagging.sql`
+8. `12-student-tagging.sql`
+9. `13-rle-bulk-borrow.sql`
+10. `14-stock-validation.sql`
+11. `15-two-day-borrow-due-date.sql`
 
 After `08-overdue-extensions.sql` succeeds, the optional Feature 1 seed is `09-feature-1-test-data.sql` and its matching cleanup is `09-remove-feature-1-test-data.sql`.
 
@@ -104,3 +108,15 @@ Run this after `10-reservation-stock-holds.sql`. It adds the SA creator identity
 ## 12. Student Tagging and Return Approval (`12-student-tagging.sql`)
 
 Run this after `11-sa-reservation-ci-tagging.sql`. It adds reservation and transaction student-tag records, enforces 1–3 unique student names, stores optional student numbers, copies reservation tags into automatically issued transactions, and records the tagged student selected by the SA when approving a return. The migration replaces the reservation, borrow-approval, and return RPC signatures used by the updated frontend.
+
+## 13. RLE Bulk Borrow Requests (`13-rle-bulk-borrow.sql`)
+
+Run this after `12-student-tagging.sql`. It adds the atomic Student Assistant-authorized database function used by the RLE Procedure's Mark All, Delete Mark, and Borrow Marked workflow. The function creates pending requests for all selected available equipment; stock is still deducted only when the SA approves each transaction and tags the accompanying students.
+
+## 14. Stock Validation (`14-stock-validation.sql`)
+
+Run this after `13-rle-bulk-borrow.sql`. It adds the stock-aware regular borrow RPC, a database trigger and transaction insert policy backstop, nonnegative inventory constraints, and consistent available-stock errors for regular borrowing, RLE bulk requests, reservations, and SA approval.
+
+## 15. Two-Day Borrow Due Date (`15-two-day-borrow-due-date.sql`)
+
+Run this after `14-stock-validation.sql`. It changes regular and RLE borrow requests to use an automatic due date two local calendar days after the request/approval date at 9:00 PM Asia/Manila. Reservation-issued transactions retain their explicitly selected reservation end date and 9:00 PM due time.

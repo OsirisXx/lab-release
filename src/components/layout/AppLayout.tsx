@@ -23,11 +23,13 @@ export function AppLayout() {
     return <Navigate to="/transactions" replace />;
   }
 
+  const isDataListPage = location.pathname === "/inventory" || location.pathname === "/transactions";
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className={isDataListPage ? "h-screen overflow-hidden bg-background" : "min-h-screen bg-background"}>
       <AppSidebar />
-      <main className="ml-60 min-h-screen">
-        <div className="p-8">
+      <main className={isDataListPage ? "ml-60 h-screen overflow-hidden" : "ml-60 min-h-screen"}>
+        <div className={isDataListPage ? "h-full min-h-0 overflow-hidden p-8" : "p-8"}>
           <Outlet />
         </div>
       </main>
