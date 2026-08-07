@@ -239,21 +239,21 @@ export default function Reservations() {
 
       {/* New Reservation Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Reservation</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="max-w-3xl">
               Choose a registered Clinical Instructor, item, and dates at least two calendar days ahead. Stock is held immediately and the reservation will appear in the selected CI's Transactions page.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
+          <div className="grid gap-x-5 gap-y-4 py-2 sm:grid-cols-2 lg:grid-cols-6">
+            <div className="sm:col-span-2 lg:col-span-3">
               <Label htmlFor="borrower">Clinical Instructor</Label>
               <select
                 id="borrower"
                 value={formData.borrower_id}
                 onChange={(e) => setFormData({ ...formData, borrower_id: e.target.value })}
-                className="w-full mt-1.5 px-3 py-2 rounded-md border bg-background"
+                className="mt-1.5 w-full rounded-md border bg-background px-3 py-2"
               >
                 <option value="">Select a registered CI...</option>
                 {clinicalInstructors.map((candidate) => (
@@ -262,18 +262,18 @@ export default function Reservations() {
                   </option>
                 ))}
               </select>
-              {usersError && <p className="text-xs text-destructive mt-1.5">Unable to load CI profiles: {usersError}</p>}
+              {usersError && <p className="mt-1.5 text-xs text-destructive">Unable to load CI profiles: {usersError}</p>}
               {!usersError && clinicalInstructors.length === 0 && (
-                <p className="text-xs text-muted-foreground mt-1.5">No registered CI profiles were found.</p>
+                <p className="mt-1.5 text-xs text-muted-foreground">No registered CI profiles were found.</p>
               )}
             </div>
-            <div>
+            <div className="sm:col-span-2 lg:col-span-3">
               <Label htmlFor="item">Item</Label>
               <select
                 id="item"
                 value={formData.item_id}
                 onChange={(e) => setFormData({ ...formData, item_id: e.target.value })}
-                className="w-full mt-1.5 px-3 py-2 rounded-md border bg-background"
+                className="mt-1.5 w-full rounded-md border bg-background px-3 py-2"
               >
                 <option value="">Select an item...</option>
                 {items.filter(i => i.stock_available > 0).map((item) => (
@@ -283,7 +283,7 @@ export default function Reservations() {
                 ))}
               </select>
             </div>
-            <div>
+            <div className="lg:col-span-2">
               <Label htmlFor="start_date">Start Date</Label>
               <Input
                 id="start_date"
@@ -291,9 +291,10 @@ export default function Reservations() {
                 value={formData.start_date}
                 onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
                 min={minimumReservationDate}
+                className="mt-1.5"
               />
             </div>
-            <div>
+            <div className="lg:col-span-2">
               <Label htmlFor="end_date">End Date</Label>
               <Input
                 id="end_date"
@@ -301,9 +302,10 @@ export default function Reservations() {
                 value={formData.end_date}
                 onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
                 min={formData.start_date || minimumReservationDate}
+                className="mt-1.5"
               />
             </div>
-            <div>
+            <div className="lg:col-span-2">
               <Label htmlFor="quantity">Quantity</Label>
               <Input
                 id="quantity"
@@ -312,13 +314,16 @@ export default function Reservations() {
                 max={items.find((item) => item.id === formData.item_id)?.stock_available || 1}
                 value={formData.quantity}
                 onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
+                className="mt-1.5"
               />
             </div>
-            <StudentTagsField
-              tags={studentTags}
-              onChange={setStudentTags}
-              description="The SA must tag 1 to 3 students accompanying the selected Clinical Instructor."
-            />
+            <div className="rounded-md border-t pt-4 sm:col-span-2 lg:col-span-6">
+              <StudentTagsField
+                tags={studentTags}
+                onChange={setStudentTags}
+                description="The SA must tag 1 to 3 students accompanying the selected Clinical Instructor."
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>

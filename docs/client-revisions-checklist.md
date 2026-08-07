@@ -160,13 +160,13 @@ Use this checklist sequentially. A feature is only complete when its database be
 
 ## Feature 7 — Student Assistant attendance bug fix
 
-- [ ] Reproduce and document the current attendance failure scenario.
-- [ ] Scope clock-out updates to the authenticated SA and an open attendance record.
-- [ ] Prevent clocking out another user's attendance record.
-- [ ] Normalize local date/time and timezone handling.
-- [ ] Decide how overnight attendance durations should behave.
-- [ ] Display attendance fetch and mutation errors in the page.
-- [ ] Add route-level and database-level SA access enforcement.
+- [x] Reproduce and document the current attendance failure scenario.
+- [x] Scope clock-out updates to the authenticated SA and an open attendance record.
+- [x] Prevent clocking out another user's attendance record.
+- [x] Normalize local date/time and timezone handling.
+- [x] Decide how overnight attendance durations should behave.
+- [x] Display attendance fetch and mutation errors in the page.
+- [x] Add route-level and database-level SA access enforcement.
 - [ ] Validate clock-in, duplicate clock-in, clock-out, duplicate clock-out, midnight, and unauthorized cases.
 - [ ] Feature 7 sign-off: [ ]
 

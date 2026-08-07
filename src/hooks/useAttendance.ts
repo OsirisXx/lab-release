@@ -12,13 +12,6 @@ export interface AttendanceRecord {
   user_profiles?: { name: string };
 }
 
-const getLocalDate = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
 export function useAttendance() {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +40,7 @@ export function useAttendance() {
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user?.id]);
 
   const fetchAttendance = async () => {
     try {
@@ -76,58 +69,24 @@ export function useAttendance() {
     if (!user) throw new Error("Must be logged in");
     if (user.role !== "sa") throw new Error("Only Student Assistants can log attendance");
 
-    const today = getLocalDate();
-    const timeNow = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
-
-    const { data: existingRecord, error: existingRecordError } = await supabase
-      .from("attendance")
-      .select("id, time_out")
-      .eq("user_id", user.id)
-      .eq("date", today)
-      .maybeSingle();
-
-    if (existingRecordError) throw existingRecordError;
-    if (existingRecord) {
-      throw new Error(existingRecord.time_out ? "Attendance is already complete for today" : "You are already clocked in today");
-    }
-
-    const { data, error } = await supabase
-      .from("attendance")
-      .insert({
-        user_id: user.id,
-        date: today,
-        time_in: timeNow,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      if (error.code === "23505") {
-        throw new Error("Attendance is already recorded for today");
-      }
-      throw error;
-    }
-
-    await fetchAttendance();
-    return data;
-  };
-
-  const clockOut = async (attendanceId: string) => {
-    if (user?.role !== "sa") throw new Error("Only Student Assistants can log attendance");
-
-    const timeNow = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
-
-    const { data, error } = await supabase
-      .from("attendance")
-      .update({ time_out: timeNow })
-      .eq("id", attendanceId)
-      .select()
-      .single();
-
+    const { data, error } = await supabase.rpc("clock_in_attendance");
     if (error) throw error;
 
     await fetchAttendance();
-    return data;
+    return data as AttendanceRecord;
+  };
+
+  const clockOut = async (attendanceId: string) => {
+    if (!user) throw new Error("Must be logged in");
+    if (user.role !== "sa") throw new Error("Only Student Assistants can log attendance");
+
+    const { data, error } = await supabase.rpc("clock_out_attendance", {
+      p_attendance_id: attendanceId,
+    });
+    if (error) throw error;
+
+    await fetchAttendance();
+    return data as AttendanceRecord;
   };
 
   return { attendance, loading, error, clockIn, clockOut, refetch: fetchAttendance };

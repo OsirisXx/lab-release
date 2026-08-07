@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAttendance } from "@/hooks/useAttendance";
 import { useAuth } from "@/contexts/AuthContext";
+import { getApplicationDate } from "@/lib/date-utils";
 import { toast } from "sonner";
 
 export function getInitials(name: string): string {
@@ -16,58 +17,59 @@ export function formatDuration(timeIn: string, timeOut: string | null): string {
   const [inH, inM] = timeIn.split(":").map(Number);
   const [outH, outM] = timeOut.split(":").map(Number);
   const totalMinutes = (outH * 60 + outM) - (inH * 60 + inM);
+  const adjustedMinutes = totalMinutes < 0 ? totalMinutes + 24 * 60 : totalMinutes;
 
-  if (totalMinutes < 0) return "—";
-  if (totalMinutes < 60) return `${totalMinutes}m`;
+  if (adjustedMinutes < 60) return `${adjustedMinutes}m`;
 
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
+  const hours = Math.floor(adjustedMinutes / 60);
+  const minutes = adjustedMinutes % 60;
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
-const getLocalDate = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
 export default function Attendance() {
-  const { attendance, loading, clockIn, clockOut } = useAttendance();
+  const { attendance, loading, error, clockIn, clockOut } = useAttendance();
   const { user } = useAuth();
   const [search, setSearch] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   const filtered = attendance.filter((record) => {
     const name = record.user_profiles?.name?.toLowerCase() || "";
     return name.includes(search.toLowerCase());
   });
 
-  const today = getLocalDate();
-  const todayRecord = attendance.find(
-    (record) => record.user_id === user?.id && record.date === today && !record.time_out,
+  const today = getApplicationDate();
+  const openRecord = attendance.find(
+    (record) => record.user_id === user?.id && !record.time_out,
   );
   const hasTodayRecord = attendance.some(
     (record) => record.user_id === user?.id && record.date === today,
   );
 
   const handleClockIn = async () => {
+    if (actionLoading) return;
+    setActionLoading(true);
     try {
       await clockIn();
       toast.success("Clocked in successfully");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to clock in";
       toast.error(message);
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleClockOut = async () => {
-    if (!todayRecord) return;
+    if (!openRecord || actionLoading) return;
+    setActionLoading(true);
     try {
-      await clockOut(todayRecord.id);
+      await clockOut(openRecord.id);
       toast.success("Clocked out successfully");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to clock out";
       toast.error(message);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -85,14 +87,17 @@ export default function Attendance() {
         <div>
           <h1 className="text-2xl font-bold">Attendance Tracking</h1>
           <p className="text-muted-foreground mt-1">Student Assistant time logs</p>
+          {error && (
+            <p className="mt-2 text-sm text-destructive">Unable to load attendance records: {error}</p>
+          )}
         </div>
         {user?.role === "sa" && (
           <div className="flex gap-2">
-            <Button onClick={handleClockIn} disabled={hasTodayRecord}>
+            <Button onClick={handleClockIn} disabled={hasTodayRecord || Boolean(openRecord) || actionLoading}>
               <LogIn className="h-4 w-4 mr-2" />
-              Clock In
+              {actionLoading ? "Saving..." : "Clock In"}
             </Button>
-            <Button variant="outline" onClick={handleClockOut} disabled={!todayRecord}>
+            <Button variant="outline" onClick={handleClockOut} disabled={!openRecord || actionLoading}>
               <LogOutIcon className="h-4 w-4 mr-2" />
               Clock Out
             </Button>

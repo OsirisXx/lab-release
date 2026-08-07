@@ -150,10 +150,16 @@ export default function Transactions() {
         </div>
       </div>
 
-      <div className="bg-card flex max-h-[30%] shrink-0 flex-col rounded-lg border overflow-hidden animate-slide-up" style={{ animationDelay: "100ms", animationFillMode: "both" }}>
-        <div className="p-5 border-b">
-          <h2 className="font-semibold">Reservation Schedule</h2>
-          <p className="text-sm text-muted-foreground mt-1">Reserved equipment and the period it is needed</p>
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(240px,auto)_minmax(0,1fr)] gap-6 sm:grid-cols-3 sm:grid-rows-1">
+        <div className="bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border animate-slide-up" style={{ animationDelay: "100ms", animationFillMode: "both" }}>
+        <div className="flex items-start justify-between gap-4 border-b px-5 py-4">
+          <div className="min-w-0">
+            <h2 className="font-semibold">Reservation Schedule</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Reserved equipment and the period it is needed</p>
+          </div>
+          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+            {filteredReservations.length} {filteredReservations.length === 1 ? "reservation" : "reservations"}
+          </span>
         </div>
         {reservationsLoading ? (
           <div className="px-5 py-6 text-sm text-muted-foreground">Loading reservations...</div>
@@ -162,21 +168,21 @@ export default function Transactions() {
         ) : (
           <div className="min-h-0 flex-1 overflow-auto divide-y">
             {filteredReservations.map((reservation) => (
-              <div key={reservation.id} className="px-5 py-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium">{reservation.inventory_items?.name || "Reserved item"}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
+              <div key={reservation.id} className="grid grid-cols-1 gap-2 px-5 py-3.5 2xl:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{reservation.inventory_items?.name || "Reserved item"}</p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
                     Borrower: {reservation.user_profiles?.name || "Registered CI"}
                     {reservation.user_profiles?.ci_id ? ` (${reservation.user_profiles.ci_id})` : ""}
                     {` · Qty: ${reservation.quantity}`}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="truncate text-xs text-muted-foreground">
                     Students: {reservation.reservation_student_tags?.map((tag) => tag.student_name).join(", ") || "Not tagged"}
                   </p>
                 </div>
-                <div className="text-sm text-right">
-                  <p className="font-medium tabular-nums">{reservation.start_date} → {reservation.end_date}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                <div className="text-left text-sm 2xl:text-right">
+                  <p className="whitespace-nowrap font-medium tabular-nums">{reservation.start_date} → {reservation.end_date}</p>
+                  <p className="mt-1 text-xs capitalize text-muted-foreground">
                     {reservation.issued_transaction_id ? "Issued to Transactions" : `${reservation.status} · ${reservation.stock_held_quantity} held`}
                   </p>
                 </div>
@@ -186,7 +192,7 @@ export default function Transactions() {
         )}
       </div>
 
-      <div className="bg-card flex min-h-0 flex-1 flex-col rounded-lg border overflow-hidden animate-slide-up" style={{ animationDelay: "120ms", animationFillMode: "both" }}>
+      <div className="bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border animate-slide-up sm:col-span-2" style={{ animationDelay: "120ms", animationFillMode: "both" }}>
         {loading ? (
           <div className="flex min-h-0 flex-1 items-center justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -291,6 +297,7 @@ export default function Transactions() {
           </table>
           </div>
         )}
+      </div>
       </div>
 
       <Dialog open={Boolean(approvalTransaction)} onOpenChange={(open) => !open && setApprovalTransaction(null)}>

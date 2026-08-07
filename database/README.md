@@ -76,6 +76,7 @@ For an existing deployment that already ran the base scripts, apply these migrat
 9. `13-rle-bulk-borrow.sql`
 10. `14-stock-validation.sql`
 11. `15-two-day-borrow-due-date.sql`
+12. `16-attendance-repair.sql`
 
 After `08-overdue-extensions.sql` succeeds, the optional Feature 1 seed is `09-feature-1-test-data.sql` and its matching cleanup is `09-remove-feature-1-test-data.sql`.
 
@@ -120,3 +121,7 @@ Run this after `13-rle-bulk-borrow.sql`. It adds the stock-aware regular borrow 
 ## 15. Two-Day Borrow Due Date (`15-two-day-borrow-due-date.sql`)
 
 Run this after `14-stock-validation.sql`. It changes regular and RLE borrow requests to use an automatic due date two local calendar days after the request/approval date at 9:00 PM Asia/Manila. Reservation-issued transactions retain their explicitly selected reservation end date and 9:00 PM due time.
+
+## 16. SA Attendance Repair (`16-attendance-repair.sql`)
+
+Run this after `15-two-day-borrow-due-date.sql`. It adds server-authoritative Student Assistant clock-in and clock-out RPCs using Asia/Manila date/time, prevents duplicate or unauthorized clock-outs, protects one attendance record per SA per local date, and adds attendance RLS policies. If duplicate legacy attendance rows exist for the same SA and date, clean them before applying this migration.

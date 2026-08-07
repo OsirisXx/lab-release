@@ -19,7 +19,7 @@ export function AppLayout() {
     return <Navigate to="/login" replace />;
   }
 
-  if (location.pathname === "/reservations" && user.role !== "sa") {
+  if ((location.pathname === "/reservations" || location.pathname === "/attendance") && user.role !== "sa") {
     return <Navigate to="/transactions" replace />;
   }
 
