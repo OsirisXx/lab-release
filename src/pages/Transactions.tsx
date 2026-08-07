@@ -11,6 +11,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { StudentTagsField } from "@/components/StudentTagsField";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -39,6 +49,7 @@ export default function Transactions() {
   const [approvalTags, setApprovalTags] = useState<StudentTagInput[]>([{ name: "", student_number: "" }]);
   const [returnTransaction, setReturnTransaction] = useState<Transaction | null>(null);
   const [returningStudentTagId, setReturningStudentTagId] = useState("");
+  const [returnConfirmationOpen, setReturnConfirmationOpen] = useState(false);
 
   const handleApprove = (transaction: Transaction) => {
     setApprovalTransaction(transaction);
@@ -68,6 +79,16 @@ export default function Transactions() {
   const handleReturn = (transaction: Transaction) => {
     setReturnTransaction(transaction);
     setReturningStudentTagId(transaction.transaction_student_tags?.[0]?.id || "");
+    setReturnConfirmationOpen(false);
+  };
+
+  const handleReturnConfirmation = () => {
+    if (!returnTransaction) return;
+    if (returnTransaction.transaction_student_tags?.length && !returningStudentTagId) {
+      toast.error("Select the tagged student who returned the equipment");
+      return;
+    }
+    setReturnConfirmationOpen(true);
   };
 
   const confirmReturn = async () => {
@@ -75,6 +96,7 @@ export default function Transactions() {
     try {
       await returnItem(returnTransaction.id, returningStudentTagId);
       toast.success("Item returned successfully");
+      setReturnConfirmationOpen(false);
       setReturnTransaction(null);
       setReturningStudentTagId("");
     } catch (error: unknown) {
@@ -342,10 +364,28 @@ export default function Transactions() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setReturnTransaction(null)}>Cancel</Button>
-            <Button onClick={confirmReturn}>Approve Return & Release Stock</Button>
+            <Button onClick={handleReturnConfirmation}>Review Return</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={returnConfirmationOpen} onOpenChange={setReturnConfirmationOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to mark this as returned?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark {returnTransaction?.inventory_items?.name || "this equipment"} as returned, release the borrowed stock, and record the return in the audit log.
+              {returningStudentTagId && returnTransaction?.transaction_student_tags?.length
+                ? ` Returning student: ${returnTransaction.transaction_student_tags.find((tag) => tag.id === returningStudentTagId)?.student_name || "Selected student"}.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go Back</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmReturn}>Yes, Mark as Returned</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
