@@ -54,7 +54,7 @@ export function useReservations() {
         .from("reservations")
         .select(`
           *,
-          user_profiles (name, email, ci_id),
+          user_profiles!reservations_user_id_fkey (name, email, ci_id),
           inventory_items (name, location)
         `)
         .order("created_at", { ascending: false });
@@ -68,7 +68,13 @@ export function useReservations() {
       if (error) throw error;
       setReservations(data || []);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load reservations");
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String(err.message)
+            : "Failed to load reservations";
+      setError(message);
     } finally {
       setLoading(false);
     }
