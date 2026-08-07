@@ -43,6 +43,7 @@ export function useReservations() {
 
   const fetchReservations = async () => {
     try {
+      setError(null);
       // SA sessions can process reservations immediately; the Vercel cron is
       // the background fallback when nobody is viewing the app.
       if (user?.role === "sa") {

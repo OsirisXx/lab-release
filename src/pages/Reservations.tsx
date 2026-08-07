@@ -35,7 +35,14 @@ function getReservationDates(startDate: string, endDate: string): Date[] {
 }
 
 export default function Reservations() {
-  const { reservations, loading, createReservation, rejectReservation, cancelReservation } = useReservations();
+  const {
+    reservations,
+    loading,
+    error: reservationError,
+    createReservation,
+    rejectReservation,
+    cancelReservation,
+  } = useReservations();
   const { clinicalInstructors, error: usersError } = useUsers();
   const { items } = useInventory();
   const { user } = useAuth();
@@ -146,6 +153,11 @@ export default function Reservations() {
           <div className="p-5 border-b">
             <h2 className="font-semibold">Upcoming Reservations</h2>
           </div>
+          {reservationError && (
+            <div className="mx-5 mt-5 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              Unable to load reservations: {reservationError}
+            </div>
+          )}
           <div className="divide-y">
             {reservations.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
