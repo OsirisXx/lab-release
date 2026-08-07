@@ -1,10 +1,12 @@
+import { Navigate } from "react-router-dom";
 import { useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, Check, X, Ban } from "lucide-react";
+import { Plus, Loader2, X, Ban } from "lucide-react";
 import { addCalendarDays, getApplicationDate } from "@/lib/date-utils";
 import { useReservations } from "@/hooks/useReservations";
+import { useUsers } from "@/hooks/useUsers";
 import { useInventory } from "@/hooks/useInventory";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -19,8 +21,22 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
+function getReservationDates(startDate: string, endDate: string): Date[] {
+  const dates: Date[] = [];
+  const current = new Date(`${startDate}T12:00:00`);
+  const end = new Date(`${endDate}T12:00:00`);
+
+  while (current <= end && dates.length < 366) {
+    dates.push(new Date(current));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
 export default function Reservations() {
-  const { reservations, loading, createReservation, approveReservation, rejectReservation, cancelReservation } = useReservations();
+  const { reservations, loading, createReservation, rejectReservation, cancelReservation } = useReservations();
+  const { clinicalInstructors } = useUsers();
   const { items } = useInventory();
   const { user } = useAuth();
   const minimumReservationDate = addCalendarDays(getApplicationDate(), 2);
@@ -28,19 +44,11 @@ export default function Reservations() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     item_id: "",
+    borrower_id: "",
     start_date: "",
     end_date: "",
     quantity: 1,
   });
-
-  const handleApprove = async (id: string) => {
-    try {
-      await approveReservation(id);
-      toast.success("Reservation approved; stock remains held until issue");
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to approve");
-    }
-  };
 
   const handleReject = async (id: string) => {
     try {
@@ -62,8 +70,8 @@ export default function Reservations() {
 
   const handleSubmit = async () => {
     try {
-      if (!formData.item_id || !formData.start_date || !formData.end_date) {
-        toast.error("Please fill in all fields");
+      if (!formData.item_id || !formData.borrower_id || !formData.start_date || !formData.end_date) {
+        toast.error("Please select an item, registered Clinical Instructor, and reservation dates");
         return;
       }
       if (formData.start_date < minimumReservationDate) {
@@ -74,14 +82,28 @@ export default function Reservations() {
         toast.error("Reservation end date cannot be before the start date");
         return;
       }
-      await createReservation(formData.item_id, formData.start_date, formData.end_date, formData.quantity);
-      toast.success("Reservation created and stock held immediately");
+      await createReservation(
+        formData.item_id,
+        formData.start_date,
+        formData.end_date,
+        formData.quantity,
+        formData.borrower_id,
+      );
+      toast.success("Reservation created for the Clinical Instructor; stock held immediately");
       setIsDialogOpen(false);
-      setFormData({ item_id: "", start_date: "", end_date: "", quantity: 1 });
+      setFormData({ item_id: "", borrower_id: "", start_date: "", end_date: "", quantity: 1 });
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to create reservation");
     }
   };
+
+  const reservedDates = reservations.flatMap((reservation) =>
+    getReservationDates(reservation.start_date, reservation.end_date),
+  );
+
+  if (user?.role === "ci") {
+    return <Navigate to="/transactions" replace />;
+  }
 
   if (loading) {
     return (
@@ -96,7 +118,7 @@ export default function Reservations() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Reservations</h1>
-          <p className="text-muted-foreground mt-1">Reserve equipment at least 2 days ahead; reserved stock is unavailable immediately.</p>
+          <p className="text-muted-foreground mt-1">Create reservations for registered Clinical Instructors; held stock is unavailable immediately.</p>
         </div>
         <Button onClick={() => setIsDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -106,7 +128,18 @@ export default function Reservations() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-card rounded-lg border p-4 animate-slide-up" style={{ animationDelay: "60ms", animationFillMode: "both" }}>
-          <Calendar mode="single" selected={date} onSelect={setDate} className="pointer-events-auto" />
+          <Calendar
+            mode="single"
+            selected={date}
+            onSelect={setDate}
+            modifiers={{ reserved: reservedDates }}
+            modifiersClassNames={{ reserved: "bg-primary/20 text-primary font-semibold" }}
+            className="pointer-events-auto"
+          />
+          <div className="flex items-center gap-2 px-3 pb-2 text-xs text-muted-foreground">
+            <span className="h-3 w-3 rounded-sm bg-primary/20" />
+            Reserved period
+          </div>
         </div>
 
         <div className="lg:col-span-2 bg-card rounded-lg border animate-slide-up" style={{ animationDelay: "120ms", animationFillMode: "both" }}>
@@ -125,6 +158,10 @@ export default function Reservations() {
                   <div className="flex-1">
                     <p className="font-medium text-sm">{r.inventory_items?.name || "Item Reserved"}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
+                      Borrower: {r.user_profiles?.name || "Registered CI"}
+                      {r.user_profiles?.ci_id ? ` (${r.user_profiles.ci_id})` : ""}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       Qty: {r.quantity} · {r.stock_held_quantity > 0 ? `${r.stock_held_quantity} held` : "No stock held"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -137,29 +174,17 @@ export default function Reservations() {
                   <div className="flex items-center gap-3">
                     <StatusBadge status={r.status} />
                     {r.status === "pending" && user?.role === "sa" && (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 text-success hover:text-success hover:bg-success/10"
-                          onClick={() => handleApprove(r.id)}
-                          title="Approve reservation"
-                        >
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => handleReject(r.id)}
-                          title="Reject reservation and release stock"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleReject(r.id)}
+                        title="Reject reservation and release stock"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     )}
-                    {(["pending", "approved"] as const).includes(r.status) &&
-                      (user?.id === r.user_id || user?.role === "sa") && (
+                    {(["pending", "approved"] as const).includes(r.status) && user?.role === "sa" && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -184,10 +209,26 @@ export default function Reservations() {
           <DialogHeader>
             <DialogTitle>New Reservation</DialogTitle>
             <DialogDescription>
-              Choose an item and dates at least two calendar days ahead. Stock is held immediately when the reservation is created.
+              Choose a registered Clinical Instructor, item, and dates at least two calendar days ahead. Stock is held immediately and the reservation will appear in the selected CI's Transactions page.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="borrower">Clinical Instructor</Label>
+              <select
+                id="borrower"
+                value={formData.borrower_id}
+                onChange={(e) => setFormData({ ...formData, borrower_id: e.target.value })}
+                className="w-full mt-1.5 px-3 py-2 rounded-md border bg-background"
+              >
+                <option value="">Select a registered CI...</option>
+                {clinicalInstructors.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.name} {candidate.ci_id ? `(${candidate.ci_id})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <Label htmlFor="item">Item</Label>
               <select

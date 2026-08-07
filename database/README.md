@@ -71,6 +71,7 @@ For an existing deployment that already ran the base scripts, apply migrations 0
 4. `07-fix-user-delete-audit.sql`
 5. `08-overdue-extensions.sql`
 6. `10-reservation-stock-holds.sql`
+7. `11-sa-reservation-ci-tagging.sql`
 
 After `08-overdue-extensions.sql` succeeds, the optional Feature 1 seed is `09-feature-1-test-data.sql` and its matching cleanup is `09-remove-feature-1-test-data.sql`.
 
@@ -95,3 +96,7 @@ Remove only those records with `09-remove-feature-1-test-data.sql`. The cleanup 
 Run this after `08-overdue-extensions.sql` on an existing deployment. It enforces a minimum reservation start date of two local calendar days ahead, holds stock immediately with a row lock, releases held stock on rejection/cancellation/expiry, and automatically issues approved reservations on their start date without deducting the held quantity twice. It also hardens normal borrow approval with a locked stock check.
 
 The Vercel cron uses `process_due_reservations()` when `SUPABASE_SERVICE_ROLE_KEY` is configured. The reversible test fixture is `10-feature-2-test-data.sql`; run it only in the intended test database, exercise the reservation through the UI, and remove it with `10-remove-feature-2-test-data.sql` after testing.
+
+## 11. SA Reservation and CI Tagging (`11-sa-reservation-ci-tagging.sql`)
+
+Run this after `10-reservation-stock-holds.sql`. It adds the SA creator identity, requires a registered CI borrower, makes new SA-created reservations approved in one operation, and exposes the selected CI's reservation through the existing borrower-based visibility rules. The reservation period is shown in both the SA Reservations page and the CI Transactions page.

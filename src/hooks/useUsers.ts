@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface User {
   id: string;
@@ -12,11 +13,19 @@ export interface User {
 
 export function useUsers() {
   const [users, setUsers] = useState<User[]>([]);
+  const [clinicalInstructors, setClinicalInstructors] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
+    if (user?.role !== "sa") {
+      setLoading(false);
+      return;
+    }
+
     fetchUsers();
+    fetchClinicalInstructors();
 
     const channel = supabase
       .channel("user_changes")
@@ -28,7 +37,7 @@ export function useUsers() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user]);
 
   const fetchUsers = async () => {
     try {
@@ -46,6 +55,15 @@ export function useUsers() {
     }
   };
 
+  const fetchClinicalInstructors = async () => {
+    const { data, error } = await supabase.rpc("list_registered_ci_profiles");
+    if (error) {
+      setClinicalInstructors([]);
+      return;
+    }
+    setClinicalInstructors((data || []) as User[]);
+  };
+
   const deleteUser = async (userId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
@@ -61,5 +79,5 @@ export function useUsers() {
     await fetchUsers();
   };
 
-  return { users, loading, error, refetch: fetchUsers, deleteUser };
+  return { users, clinicalInstructors, loading, error, refetch: fetchUsers, deleteUser };
 }

@@ -13,3 +13,7 @@ Feature 1 test records are created only by `database/09-feature-1-test-data.sql`
 ## Feature 2 deployment configuration
 
 Run `database/10-reservation-stock-holds.sql` after the Feature 1 migration. The same Vercel cron now processes both overdue transactions and approved reservations whose start date has arrived. `SUPABASE_SERVICE_ROLE_KEY` and `CRON_SECRET` must be configured in Vercel. The Feature 2 fixture is `database/10-feature-2-test-data.sql`, with cleanup in `database/10-remove-feature-2-test-data.sql`.
+
+## Feature 3 deployment configuration
+
+Run `database/11-sa-reservation-ci-tagging.sql` after the Feature 2 migration. It adds SA-only reservation creation, registered-CI selection, creator/borrower separation, and reservation visibility in Transactions. New reservations no longer need a second approval click because the SA creates them as approved while the stock hold is acquired.

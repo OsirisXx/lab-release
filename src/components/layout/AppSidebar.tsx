@@ -24,7 +24,7 @@ const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/", roles: ["sa", "ci"] },
   { label: "Inventory/Borrowing", icon: Package, path: "/inventory", roles: ["sa", "ci"] },
   { label: "Transactions", icon: ArrowRightLeft, path: "/transactions", roles: ["sa", "ci"] },
-  { label: "Reservations", icon: CalendarClock, path: "/reservations", roles: ["sa", "ci"] },
+  { label: "Reservations", icon: CalendarClock, path: "/reservations", roles: ["sa"] },
   { label: "Users", icon: Users, path: "/users", roles: ["sa"] },
   { label: "Attendance", icon: Clock, path: "/attendance", roles: ["sa"] },
   { label: "Reports", icon: BarChart3, path: "/reports", roles: ["sa"] },

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useTransactions, getEffectiveStatus, isActiveBorrow } from "@/hooks/useTransactions";
+import { useReservations } from "@/hooks/useReservations";
 import { formatDueDate } from "@/lib/date-utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -21,6 +22,7 @@ export default function Transactions() {
     requestExtension,
     reviewExtension,
   } = useTransactions();
+  const { reservations, loading: reservationsLoading } = useReservations();
   const { user } = useAuth();
 
   const handleApprove = async (id: string) => {
@@ -78,6 +80,15 @@ export default function Transactions() {
     return matchesSearch && matchesStatus;
   });
 
+  const filteredReservations = reservations.filter((reservation) => {
+    const query = search.toLowerCase();
+    return (
+      reservation.inventory_items?.name.toLowerCase().includes(query) ||
+      reservation.user_profiles?.name.toLowerCase().includes(query) ||
+      reservation.user_profiles?.ci_id?.toLowerCase().includes(query)
+    );
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -102,6 +113,39 @@ export default function Transactions() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="bg-card rounded-lg border overflow-hidden animate-slide-up" style={{ animationDelay: "100ms", animationFillMode: "both" }}>
+        <div className="p-5 border-b">
+          <h2 className="font-semibold">Reservation Schedule</h2>
+          <p className="text-sm text-muted-foreground mt-1">Reserved equipment and the period it is needed</p>
+        </div>
+        {reservationsLoading ? (
+          <div className="px-5 py-6 text-sm text-muted-foreground">Loading reservations...</div>
+        ) : filteredReservations.length === 0 ? (
+          <div className="px-5 py-6 text-sm text-muted-foreground">No reservations match the current search.</div>
+        ) : (
+          <div className="divide-y">
+            {filteredReservations.map((reservation) => (
+              <div key={reservation.id} className="px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">{reservation.inventory_items?.name || "Reserved item"}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Borrower: {reservation.user_profiles?.name || "Registered CI"}
+                    {reservation.user_profiles?.ci_id ? ` (${reservation.user_profiles.ci_id})` : ""}
+                    {` · Qty: ${reservation.quantity}`}
+                  </p>
+                </div>
+                <div className="text-sm text-right">
+                  <p className="font-medium tabular-nums">{reservation.start_date} → {reservation.end_date}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {reservation.issued_transaction_id ? "Issued to Transactions" : `${reservation.status} · ${reservation.stock_held_quantity} held`}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="bg-card rounded-lg border overflow-hidden animate-slide-up" style={{ animationDelay: "120ms", animationFillMode: "both" }}>
@@ -206,7 +250,7 @@ export default function Transactions() {
         )}
       </div>
 
-      {filtered.length === 0 && !loading && (
+      {filtered.length === 0 && filteredReservations.length === 0 && !loading && (
         <p className="text-center text-muted-foreground py-8">No transactions found.</p>
       )}
     </div>

@@ -1,10 +1,11 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
 export function AppLayout() {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -16,6 +17,10 @@ export function AppLayout() {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (location.pathname === "/reservations" && user.role !== "sa") {
+    return <Navigate to="/transactions" replace />;
   }
 
   return (

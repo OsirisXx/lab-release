@@ -6,6 +6,7 @@ import { addCalendarDays, getApplicationDate } from "@/lib/date-utils";
 export interface Reservation {
   id: string;
   user_id: string;
+  created_by: string;
   item_id: string;
   start_date: string;
   end_date: string;
@@ -44,7 +45,9 @@ export function useReservations() {
     try {
       // SA sessions can process reservations immediately; the Vercel cron is
       // the background fallback when nobody is viewing the app.
-      await supabase.rpc("process_due_reservations");
+      if (user?.role === "sa") {
+        await supabase.rpc("process_due_reservations");
+      }
 
       let query = supabase
         .from("reservations")
@@ -70,8 +73,14 @@ export function useReservations() {
     }
   };
 
-  const createReservation = async (itemId: string, startDate: string, endDate: string, quantity: number) => {
-    if (!user) throw new Error("Must be logged in");
+  const createReservation = async (
+    itemId: string,
+    startDate: string,
+    endDate: string,
+    quantity: number,
+    borrowerId: string,
+  ) => {
+    if (user?.role !== "sa") throw new Error("Only Student Assistants can create reservations");
 
     const minimumDate = addCalendarDays(getApplicationDate(), 2);
     if (startDate < minimumDate) {
@@ -89,6 +98,7 @@ export function useReservations() {
       p_start_date: startDate,
       p_end_date: endDate,
       p_quantity: quantity,
+      p_borrower_id: borrowerId,
     });
 
     if (error) throw error;
@@ -121,7 +131,7 @@ export function useReservations() {
   };
 
   const cancelReservation = async (reservationId: string) => {
-    if (!user) throw new Error("Must be logged in");
+    if (user?.role !== "sa") throw new Error("Only Student Assistants can cancel reservations");
 
     const { data, error } = await supabase.rpc("cancel_reservation", {
       p_reservation_id: reservationId,

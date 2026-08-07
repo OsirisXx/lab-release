@@ -79,15 +79,15 @@ Use this checklist sequentially. A feature is only complete when its database be
 
 ## Feature 3 — SA-only reservations and CI transaction visibility
 
-- [ ] Remove reservation creation controls from the CI interface.
-- [ ] Allow only an SA to create a reservation.
-- [ ] Let the SA select the registered CI who will borrow the item.
-- [ ] Store the SA creator separately from the borrowing CI.
-- [ ] Remove or redesign the redundant SA approval step if creation immediately creates the stock hold.
-- [ ] Show the reservation in the selected CI's Transactions menu.
-- [ ] Display item, quantity, CI, CI ID, reservation status, start date, and end date.
-- [ ] Add a calendar/timeline view or equivalent indicator showing the reservation period.
-- [ ] Enforce SA/CI visibility and mutation rules at the database level.
+- [x] Remove reservation creation controls from the CI interface.
+- [x] Allow only an SA to create a reservation.
+- [x] Let the SA select the registered CI who will borrow the item.
+- [x] Store the SA creator separately from the borrowing CI.
+- [x] Remove the redundant SA approval step for newly created reservations; retain legacy approval RPC compatibility.
+- [x] Show the reservation in the selected CI's Transactions menu before issuance.
+- [x] Display item, quantity, CI, CI ID, reservation status, start date, and end date.
+- [x] Add a calendar period indicator and reservation schedule showing the needed-through date.
+- [x] Enforce SA/CI visibility and mutation rules at the database level.
 - [ ] Validate creation, CI visibility, direct URL access, and unauthorized mutation attempts.
 - [ ] Feature 3 sign-off: [ ]
 

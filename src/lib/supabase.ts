@@ -180,6 +180,7 @@ export type Database = {
         Row: {
           id: string;
           user_id: string;
+          created_by: string;
           item_id: string;
           start_date: string;
           end_date: string;
@@ -193,6 +194,7 @@ export type Database = {
         Insert: {
           id?: string;
           user_id: string;
+          created_by: string;
           item_id: string;
           start_date: string;
           end_date: string;
@@ -206,6 +208,7 @@ export type Database = {
         Update: {
           id?: string;
           user_id?: string;
+          created_by?: string;
           item_id?: string;
           start_date?: string;
           end_date?: string;
