@@ -2,10 +2,11 @@ import { useState } from "react";
 import { BookOpen, Search, FileText, Plus, Edit2, Trash2, Loader2, ShoppingCart, Package, CheckCircle, XCircle, AlertCircle, ListChecks, Eraser } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useRleGuides } from "@/hooks/useRleGuides";
+import { useRleGuides, type RleGuide } from "@/hooks/useRleGuides";
 import { useAuth } from "@/contexts/AuthContext";
-import { useInventory } from "@/hooks/useInventory";
+import { useInventory, type InventoryItem } from "@/hooks/useInventory";
 import { useTransactions } from "@/hooks/useTransactions";
+import { AssistedBorrowDialog } from "@/components/AssistedBorrowDialog";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -18,28 +19,41 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { addCalendarDays, getApplicationDate, formatDueDate } from "@/lib/date-utils";
 
+const getErrorMessage = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
+
 export default function RleGuide() {
   const { guides, loading, createGuide, updateGuide, deleteGuide } = useRleGuides();
   const { items } = useInventory();
-  const { createBorrowRequest, createBulkBorrowRequests } = useTransactions();
+  const {
+    createBorrowRequest,
+    createBulkBorrowRequests,
+    createBorrowForCI,
+    refetch: refetchTransactions,
+  } = useTransactions();
   const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isBorrowDialogOpen, setIsBorrowDialogOpen] = useState(false);
   const [isBulkBorrowDialogOpen, setIsBulkBorrowDialogOpen] = useState(false);
-  const [editingGuide, setEditingGuide] = useState<any>(null);
-  const [selectedEquipment, setSelectedEquipment] = useState<any>(null);
+  const [isAssistedBorrowDialogOpen, setIsAssistedBorrowDialogOpen] = useState(false);
+  const [editingGuide, setEditingGuide] = useState<RleGuide | null>(null);
+  const [selectedEquipment, setSelectedEquipment] = useState<InventoryItem | null>(null);
   const [bulkBorrowGuideId, setBulkBorrowGuideId] = useState<string | null>(null);
-  const [bulkBorrowItems, setBulkBorrowItems] = useState<any[]>([]);
+  const [bulkBorrowItems, setBulkBorrowItems] = useState<InventoryItem[]>([]);
   const [bulkBorrowQuantities, setBulkBorrowQuantities] = useState<Record<string, number>>({});
+  const [assistedBorrowItems, setAssistedBorrowItems] = useState<InventoryItem[]>([]);
+  const [assistedBorrowInitialItemId, setAssistedBorrowInitialItemId] = useState("");
+  const [assistedBorrowGuideId, setAssistedBorrowGuideId] = useState<string | null>(null);
+  const [assistedBorrowTitle, setAssistedBorrowTitle] = useState("Borrow for Clinical Instructor");
+  const [assistedBorrowDescription, setAssistedBorrowDescription] = useState<string | undefined>(undefined);
   const [markedEquipmentByGuide, setMarkedEquipmentByGuide] = useState<Record<string, string[]>>({});
   const [isDeleteMarkDialogOpen, setIsDeleteMarkDialogOpen] = useState(false);
   const [deleteMarkGuideId, setDeleteMarkGuideId] = useState<string | null>(null);
-  const [deleteMarkItems, setDeleteMarkItems] = useState<any[]>([]);
+  const [deleteMarkItems, setDeleteMarkItems] = useState<InventoryItem[]>([]);
   const [borrowQuantity, setBorrowQuantity] = useState(1);
   const [formData, setFormData] = useState({
-    year_level: "1st Year" as any,
+    year_level: "1st Year" as RleGuide["year_level"],
     title: "",
     description: "",
     topics: "",
@@ -48,11 +62,11 @@ export default function RleGuide() {
   const [selectedEquipmentItems, setSelectedEquipmentItems] = useState<string[]>([]);
   const [equipmentSearch, setEquipmentSearch] = useState("");
 
-  const getAvailableEquipmentForGuide = (guide: any) => {
+  const getAvailableEquipmentForGuide = (guide: RleGuide): InventoryItem[] => {
     const seen = new Set<string>();
     return guide.equipment
-      .map((equipmentName: string) => items.find((item) => item.name.toLowerCase() === equipmentName.toLowerCase()))
-      .filter((item: any) => {
+      .map((equipmentName) => items.find((item) => item.name.toLowerCase() === equipmentName.toLowerCase()))
+      .filter((item): item is InventoryItem => {
         if (!item || item.stock_available <= 0 || seen.has(item.id)) return false;
         seen.add(item.id);
         return true;
@@ -71,14 +85,14 @@ export default function RleGuide() {
     });
   };
 
-  const handleMarkAll = (guide: any) => {
+  const handleMarkAll = (guide: RleGuide) => {
     setMarkedEquipmentByGuide((current) => ({
       ...current,
-      [guide.id]: getAvailableEquipmentForGuide(guide).map((item: any) => item.id),
+      [guide.id]: getAvailableEquipmentForGuide(guide).map((item: InventoryItem) => item.id),
     }));
   };
 
-  const handleDeleteMark = (guide: any) => {
+  const handleDeleteMark = (guide: RleGuide) => {
     const markedIds = markedEquipmentByGuide[guide.id] || [];
     if (markedIds.length === 0) {
       toast.error("Mark at least one item before deleting marks");
@@ -100,22 +114,68 @@ export default function RleGuide() {
     }
   };
 
-  const handleOpenBulkBorrow = (guide: any) => {
+  const handleOpenBulkBorrow = (guide: RleGuide) => {
     const markedIds = markedEquipmentByGuide[guide.id] || [];
-    const selected = getAvailableEquipmentForGuide(guide).filter((item: any) => markedIds.includes(item.id));
+    const selected = getAvailableEquipmentForGuide(guide).filter((item: InventoryItem) => markedIds.includes(item.id));
     if (selected.length === 0) {
       toast.error("Mark at least one available item first");
       return;
     }
     setBulkBorrowGuideId(guide.id);
     setBulkBorrowItems(selected);
-    setBulkBorrowQuantities(Object.fromEntries(selected.map((item: any) => [item.id, 1])));
+    setBulkBorrowQuantities(Object.fromEntries(selected.map((item: InventoryItem) => [item.id, 1])));
     setIsBulkBorrowDialogOpen(true);
+  };
+
+  const resetAssistedBorrowDialog = () => {
+    setAssistedBorrowItems([]);
+    setAssistedBorrowInitialItemId("");
+    setAssistedBorrowGuideId(null);
+    setAssistedBorrowTitle("Borrow for Clinical Instructor");
+    setAssistedBorrowDescription(undefined);
+  };
+
+  const handleOpenAssistedBorrow = (item: InventoryItem) => {
+    setAssistedBorrowItems([item]);
+    setAssistedBorrowInitialItemId(item.id);
+    setAssistedBorrowGuideId(null);
+    setAssistedBorrowTitle("Borrow for Clinical Instructor");
+    setAssistedBorrowDescription(undefined);
+    setIsAssistedBorrowDialogOpen(true);
+  };
+
+  const handleOpenMarkedAssistedBorrow = (guide: RleGuide) => {
+    const markedIds = markedEquipmentByGuide[guide.id] || [];
+    const selected = getAvailableEquipmentForGuide(guide).filter((item: InventoryItem) => markedIds.includes(item.id));
+    if (selected.length === 0) {
+      toast.error("Mark at least one available item first");
+      return;
+    }
+
+    setAssistedBorrowItems(selected);
+    setAssistedBorrowInitialItemId(selected[0].id);
+    setAssistedBorrowGuideId(guide.id);
+    setAssistedBorrowTitle("Borrow Marked Equipment for CI");
+    setAssistedBorrowDescription("Choose one marked item to record for a registered Clinical Instructor. Marked items are processed one at a time, and each CI can have only one active assisted borrow.");
+    setIsAssistedBorrowDialogOpen(true);
+  };
+
+  const handleAssistedBorrowDialogChange = (open: boolean) => {
+    setIsAssistedBorrowDialogOpen(open);
+    if (!open) resetAssistedBorrowDialog();
+  };
+
+  const handleAssistedBorrowSuccess = (transaction: { item_id: string }) => {
+    if (!assistedBorrowGuideId) return;
+    setMarkedEquipmentByGuide((current) => ({
+      ...current,
+      [assistedBorrowGuideId]: (current[assistedBorrowGuideId] || []).filter((itemId) => itemId !== transaction.item_id),
+    }));
   };
 
   const handleBulkBorrow = async () => {
     try {
-      const invalidRequest = bulkBorrowItems.find((item: any) => {
+      const invalidRequest = bulkBorrowItems.find((item: InventoryItem) => {
         const quantity = bulkBorrowQuantities[item.id] || 1;
         return quantity > item.stock_available;
       });
@@ -124,7 +184,7 @@ export default function RleGuide() {
         toast.error(`Only ${invalidRequest.stock_available} unit(s) of ${invalidRequest.name} are available; requested ${quantity}`);
         return;
       }
-      const requests = bulkBorrowItems.map((item: any) => ({
+      const requests = bulkBorrowItems.map((item: InventoryItem) => ({
         itemId: item.id,
         quantity: bulkBorrowQuantities[item.id] || 1,
       }));
@@ -136,8 +196,8 @@ export default function RleGuide() {
       setIsBulkBorrowDialogOpen(false);
       setBulkBorrowItems([]);
       setBulkBorrowGuideId(null);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to submit bulk borrow request");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to submit bulk borrow request"));
     }
   };
 
@@ -152,7 +212,7 @@ export default function RleGuide() {
 
 
 
-  const handleOpenDialog = (guide?: any) => {
+  const handleOpenDialog = (guide?: RleGuide) => {
     if (guide) {
       setEditingGuide(guide);
       setFormData({
@@ -208,8 +268,8 @@ export default function RleGuide() {
         toast.success("Guide created successfully");
       }
       handleCloseDialog();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to save guide");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to save guide"));
     }
   };
 
@@ -219,8 +279,8 @@ export default function RleGuide() {
     try {
       await deleteGuide(id);
       toast.success("Guide deleted successfully");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to delete guide");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to delete guide"));
     }
   };
 
@@ -314,7 +374,7 @@ export default function RleGuide() {
                 <div className="mb-4">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <p className="text-xs font-medium text-muted-foreground">Suggested Equipment</p>
-                    {user?.role === "ci" && (
+                    {(user?.role === "ci" || user?.role === "sa") && (
                       <div className="flex flex-wrap justify-end gap-1">
                         <Button
                           size="sm"
@@ -334,15 +394,27 @@ export default function RleGuide() {
                           <Eraser className="h-3 w-3 mr-1" />
                           Delete Mark
                         </Button>
-                        <Button
-                          size="sm"
-                          className="h-7 text-xs"
-                          disabled={(markedEquipmentByGuide[guide.id] || []).length === 0}
-                          onClick={() => handleOpenBulkBorrow(guide)}
-                        >
-                          <ShoppingCart className="h-3 w-3 mr-1" />
-                          Borrow Marked ({(markedEquipmentByGuide[guide.id] || []).length})
-                        </Button>
+                        {user?.role === "ci" ? (
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={(markedEquipmentByGuide[guide.id] || []).length === 0}
+                            onClick={() => handleOpenBulkBorrow(guide)}
+                          >
+                            <ShoppingCart className="h-3 w-3 mr-1" />
+                            Borrow Marked ({(markedEquipmentByGuide[guide.id] || []).length})
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={(markedEquipmentByGuide[guide.id] || []).length === 0}
+                            onClick={() => handleOpenMarkedAssistedBorrow(guide)}
+                          >
+                            <ShoppingCart className="h-3 w-3 mr-1" />
+                            Borrow Marked for CI ({(markedEquipmentByGuide[guide.id] || []).length})
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -357,7 +429,7 @@ export default function RleGuide() {
                       return (
                         <div key={`${guide.id}-${equipmentName}-${idx}`} className="flex items-center justify-between p-2 rounded-md bg-muted/50 hover:bg-muted transition-colors">
                           <div className="flex items-center gap-2">
-                            {user?.role === "ci" && inventoryItem && isAvailable && (
+                            {(user?.role === "ci" || user?.role === "sa") && inventoryItem && isAvailable && (
                               <input
                                 type="checkbox"
                                 aria-label={`Mark ${equipmentName}`}
@@ -398,6 +470,17 @@ export default function RleGuide() {
                                   >
                                     <ShoppingCart className="h-3 w-3 mr-1" />
                                     Borrow
+                                  </Button>
+                                )}
+                                {user?.role === 'sa' && isAvailable && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs"
+                                    onClick={() => handleOpenAssistedBorrow(inventoryItem)}
+                                  >
+                                    <ShoppingCart className="h-3 w-3 mr-1" />
+                                    Borrow for CI
                                   </Button>
                                 )}
                               </>
@@ -442,7 +525,7 @@ export default function RleGuide() {
               <select
                 id="year_level"
                 value={formData.year_level}
-                onChange={(e) => setFormData({ ...formData, year_level: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, year_level: e.target.value as RleGuide["year_level"] })}
                 className="w-full mt-1.5 px-3 py-2 rounded-md border bg-background"
               >
                 <option value="1st Year">1st Year</option>
@@ -527,6 +610,19 @@ export default function RleGuide() {
         </DialogContent>
       </Dialog>
 
+      <AssistedBorrowDialog
+        open={isAssistedBorrowDialogOpen}
+        onOpenChange={handleAssistedBorrowDialogChange}
+        itemOptions={assistedBorrowItems}
+        initialItemId={assistedBorrowInitialItemId}
+        title={assistedBorrowTitle}
+        description={assistedBorrowDescription}
+        trigger={null}
+        createBorrowForCI={createBorrowForCI}
+        refetchTransactions={refetchTransactions}
+        onSuccess={handleAssistedBorrowSuccess}
+      />
+
       {/* Delete Mark Dialog */}
       <Dialog open={isDeleteMarkDialogOpen} onOpenChange={handleDeleteMarkDialogChange}>
         <DialogContent>
@@ -543,7 +639,7 @@ export default function RleGuide() {
               </p>
             ) : (
               <div className="max-h-64 space-y-2 overflow-y-auto">
-                {deleteMarkItems.map((item: any) => (
+                {deleteMarkItems.map((item: InventoryItem) => (
                   <label key={item.id} className="flex cursor-pointer items-center gap-3 rounded-md border p-3 hover:bg-muted/50">
                     <input
                       type="checkbox"
@@ -614,8 +710,8 @@ export default function RleGuide() {
                   setIsBorrowDialogOpen(false);
                   setSelectedEquipment(null);
                   setBorrowQuantity(1);
-                } catch (error: any) {
-                  toast.error(error.message || 'Failed to submit borrow request');
+                } catch (error: unknown) {
+                  toast.error(getErrorMessage(error, "Failed to submit borrow request"));
                 }
               }}
             >
@@ -640,7 +736,7 @@ export default function RleGuide() {
               <p className="text-sm font-medium">{formatDueDate(addCalendarDays(getApplicationDate(), 2))}</p>
             </div>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {bulkBorrowItems.map((item: any) => (
+              {bulkBorrowItems.map((item: InventoryItem) => (
                 <div key={item.id} className="grid grid-cols-[1fr_7rem] gap-3 items-center border rounded-md p-3">
                   <div>
                     <p className="text-sm font-medium">{item.name}</p>
