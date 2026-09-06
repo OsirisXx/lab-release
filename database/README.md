@@ -77,6 +77,7 @@ For an existing deployment that already ran the base scripts, apply these migrat
 10. `14-stock-validation.sql`
 11. `15-two-day-borrow-due-date.sql`
 12. `16-attendance-repair.sql`
+13. `17-sa-assisted-borrow.sql`
 
 After `08-overdue-extensions.sql` succeeds, the optional Feature 1 seed is `09-feature-1-test-data.sql` and its matching cleanup is `09-remove-feature-1-test-data.sql`.
 
@@ -125,3 +126,7 @@ Run this after `14-stock-validation.sql`. It changes regular and RLE borrow requ
 ## 16. SA Attendance Repair (`16-attendance-repair.sql`)
 
 Run this after `15-two-day-borrow-due-date.sql`. It adds server-authoritative Student Assistant clock-in and clock-out RPCs using Asia/Manila date/time, prevents duplicate or unauthorized clock-outs, protects one attendance record per SA per local date, and adds attendance RLS policies. If duplicate legacy attendance rows exist for the same SA and date, clean them before applying this migration.
+
+## 17. SA-Assisted Borrowing (`17-sa-assisted-borrow.sql`)
+
+Run this after `16-attendance-repair.sql`. It adds the Student Assistant-only `create_borrow_for_ci` function for recording an immediate active borrow on behalf of a registered Clinical Instructor. It locks and deducts available stock atomically, applies the standard two-calendar-day due date at 9:00 PM Asia/Manila, accepts zero to three optional student tags, and records the creating SA in the transaction audit log. The selected CI becomes the borrower shown in that CI's Transactions page.

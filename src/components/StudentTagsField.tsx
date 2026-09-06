@@ -8,9 +8,10 @@ interface StudentTagsFieldProps {
   tags: StudentTagInput[];
   onChange: (tags: StudentTagInput[]) => void;
   description?: string;
+  minTags?: number;
 }
 
-export function StudentTagsField({ tags, onChange, description }: StudentTagsFieldProps) {
+export function StudentTagsField({ tags, onChange, description, minTags = 1 }: StudentTagsFieldProps) {
   const updateTag = (index: number, field: keyof StudentTagInput, value: string) => {
     onChange(tags.map((tag, tagIndex) => tagIndex === index ? { ...tag, [field]: value } : tag));
   };
@@ -20,7 +21,7 @@ export function StudentTagsField({ tags, onChange, description }: StudentTagsFie
   };
 
   const removeTag = (index: number) => {
-    if (tags.length > 1) onChange(tags.filter((_, tagIndex) => tagIndex !== index));
+    if (tags.length > minTags) onChange(tags.filter((_, tagIndex) => tagIndex !== index));
   };
 
   return (
@@ -59,7 +60,7 @@ export function StudentTagsField({ tags, onChange, description }: StudentTagsFie
             size="sm"
             className="h-10 w-10 p-0 text-destructive"
             onClick={() => removeTag(index)}
-            disabled={tags.length === 1}
+            disabled={tags.length <= minTags}
             aria-label={`Remove student ${index + 1}`}
           >
             <Trash2 className="h-4 w-4" />

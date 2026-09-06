@@ -191,6 +191,38 @@ export function useTransactions() {
     return data as Transaction[];
   };
 
+  const createBorrowForCI = async (
+    itemId: string,
+    quantity: number,
+    borrowerId: string,
+    studentTags: StudentTagInput[],
+  ) => {
+    if (user?.role !== "sa") throw new Error("Only Student Assistants can create assisted borrows");
+    if (!itemId || !borrowerId) throw new Error("Select a Clinical Instructor and an inventory item");
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      throw new Error("Borrow quantity must be greater than zero");
+    }
+
+    const normalizedTags = studentTags.map((tag) => ({
+      name: tag.name.trim(),
+      student_number: tag.student_number?.trim() || null,
+    }));
+    if (normalizedTags.length > 3 || normalizedTags.some((tag) => !tag.name)) {
+      throw new Error("Each optional student tag must have a name; add up to 3 students");
+    }
+
+    const { data, error } = await supabase.rpc("create_borrow_for_ci", {
+      p_item_id: itemId,
+      p_quantity: quantity,
+      p_borrower_id: borrowerId,
+      p_student_tags: normalizedTags,
+    });
+    if (error) throw error;
+
+    await fetchTransactions();
+    return data as Transaction;
+  };
+
   const approveTransaction = async (transactionId: string, studentTags: StudentTagInput[]) => {
     if (user?.role !== "sa") throw new Error("Only Student Assistants can approve transactions");
     const normalizedTags = studentTags.map((tag) => ({
@@ -270,6 +302,7 @@ export function useTransactions() {
     error,
     createBorrowRequest,
     createBulkBorrowRequests,
+    createBorrowForCI,
     approveTransaction,
     rejectTransaction,
     returnItem,

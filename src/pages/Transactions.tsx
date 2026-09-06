@@ -10,6 +10,7 @@ import { formatDueDate } from "@/lib/date-utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { StudentTagsField } from "@/components/StudentTagsField";
+import { AssistedBorrowDialog } from "@/components/AssistedBorrowDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +38,8 @@ export default function Transactions() {
     extensionRequests,
     loading,
     error: transactionError,
+    createBorrowForCI,
+    refetch: refetchTransactions,
     approveTransaction,
     rejectTransaction,
     returnItem,
@@ -151,6 +154,12 @@ export default function Transactions() {
             Unable to load transactions: {transactionError}
           </p>
         )}
+        <div className="mt-4">
+          <AssistedBorrowDialog
+            createBorrowForCI={createBorrowForCI}
+            refetchTransactions={refetchTransactions}
+          />
+        </div>
       </div>
 
       <div className="flex items-center gap-3 animate-slide-up" style={{ animationDelay: "60ms", animationFillMode: "both" }}>
