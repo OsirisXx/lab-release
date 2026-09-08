@@ -78,6 +78,7 @@ For an existing deployment that already ran the base scripts, apply these migrat
 11. `15-two-day-borrow-due-date.sql`
 12. `16-attendance-repair.sql`
 13. `17-sa-assisted-borrow.sql`
+14. `18-sa-assisted-bulk-borrow.sql`
 
 After `08-overdue-extensions.sql` succeeds, the optional Feature 1 seed is `09-feature-1-test-data.sql` and its matching cleanup is `09-remove-feature-1-test-data.sql`.
 
@@ -130,3 +131,7 @@ Run this after `15-two-day-borrow-due-date.sql`. It adds server-authoritative St
 ## 17. SA-Assisted Borrowing (`17-sa-assisted-borrow.sql`)
 
 Run this after `16-attendance-repair.sql`. It adds the Student Assistant-only `create_borrow_for_ci` function for recording an immediate active borrow on behalf of a registered Clinical Instructor. It locks and deducts available stock atomically, applies the standard two-calendar-day due date at 9:00 PM Asia/Manila, accepts zero to three optional student tags, and records the creating SA in the transaction audit log. The selected CI becomes the borrower shown in that CI's Transactions page.
+
+## 18. SA-Assisted Bulk Borrowing (`18-sa-assisted-bulk-borrow.sql`)
+
+Run this after `17-sa-assisted-borrow.sql`. It adds the atomic `create_bulk_borrow_for_ci` function used by RLE's **Borrow Marked for CI** flow. It locks and validates every marked item before changing stock, creates one active transaction per item, copies the optional student tags to each transaction, and rolls back the entire batch if any item fails validation.

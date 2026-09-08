@@ -198,6 +198,11 @@ export function useTransactions() {
     studentTags: StudentTagInput[],
   ) => {
     if (user?.role !== "sa") throw new Error("Only Student Assistants can create assisted borrows");
+
+    const { data: { user: authenticatedUser }, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authenticatedUser) throw new Error("Your session has expired. Please sign in again.");
+
     if (!itemId || !borrowerId) throw new Error("Select a Clinical Instructor and an inventory item");
     if (!Number.isInteger(quantity) || quantity <= 0) {
       throw new Error("Borrow quantity must be greater than zero");
@@ -221,6 +226,46 @@ export function useTransactions() {
 
     await fetchTransactions();
     return data as Transaction;
+  };
+
+  const createBulkBorrowForCI = async (
+    requests: BulkBorrowRequest[],
+    borrowerId: string,
+    studentTags: StudentTagInput[],
+  ) => {
+    if (user?.role !== "sa") throw new Error("Only Student Assistants can create assisted borrows");
+
+    const { data: { user: authenticatedUser }, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authenticatedUser) throw new Error("Your session has expired. Please sign in again.");
+
+    if (!borrowerId) throw new Error("Select a Clinical Instructor");
+    if (requests.length === 0) throw new Error("Select at least one item");
+    if (requests.some((request) => !request.itemId || !Number.isInteger(request.quantity) || request.quantity <= 0)) {
+      throw new Error("Each selected item must have a valid quantity");
+    }
+    if (new Set(requests.map((request) => request.itemId)).size !== requests.length) {
+      throw new Error("An item cannot be selected more than once");
+    }
+
+    const normalizedTags = studentTags.map((tag) => ({
+      name: tag.name.trim(),
+      student_number: tag.student_number?.trim() || null,
+    }));
+    if (normalizedTags.length > 3 || normalizedTags.some((tag) => !tag.name)) {
+      throw new Error("Each optional student tag must have a name; add up to 3 students");
+    }
+
+    const { data, error } = await supabase.rpc("create_bulk_borrow_for_ci", {
+      p_item_ids: requests.map((request) => request.itemId),
+      p_quantities: requests.map((request) => request.quantity),
+      p_borrower_id: borrowerId,
+      p_student_tags: normalizedTags,
+    });
+    if (error) throw error;
+
+    await fetchTransactions();
+    return data as Transaction[];
   };
 
   const approveTransaction = async (transactionId: string, studentTags: StudentTagInput[]) => {
@@ -303,6 +348,7 @@ export function useTransactions() {
     createBorrowRequest,
     createBulkBorrowRequests,
     createBorrowForCI,
+    createBulkBorrowForCI,
     approveTransaction,
     rejectTransaction,
     returnItem,

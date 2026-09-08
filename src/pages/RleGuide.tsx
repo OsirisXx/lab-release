@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useRleGuides, type RleGuide } from "@/hooks/useRleGuides";
 import { useAuth } from "@/contexts/AuthContext";
 import { useInventory, type InventoryItem } from "@/hooks/useInventory";
-import { useTransactions } from "@/hooks/useTransactions";
+import { useTransactions, type Transaction } from "@/hooks/useTransactions";
 import { AssistedBorrowDialog } from "@/components/AssistedBorrowDialog";
 import { toast } from "sonner";
 import {
@@ -28,6 +28,7 @@ export default function RleGuide() {
     createBorrowRequest,
     createBulkBorrowRequests,
     createBorrowForCI,
+    createBulkBorrowForCI,
     refetch: refetchTransactions,
   } = useTransactions();
   const { user } = useAuth();
@@ -146,7 +147,14 @@ export default function RleGuide() {
 
   const handleOpenMarkedAssistedBorrow = (guide: RleGuide) => {
     const markedIds = markedEquipmentByGuide[guide.id] || [];
-    const selected = getAvailableEquipmentForGuide(guide).filter((item: InventoryItem) => markedIds.includes(item.id));
+    const selected = markedIds
+      .map((itemId) => items.find((item) => item.id === itemId))
+      .filter((item): item is InventoryItem => Boolean(item));
+
+    if (selected.length !== markedIds.length || selected.some((item) => item.stock_available <= 0)) {
+      toast.error("One or more marked items are no longer available. Refresh the page and update your marks.");
+      return;
+    }
     if (selected.length === 0) {
       toast.error("Mark at least one available item first");
       return;
@@ -156,7 +164,7 @@ export default function RleGuide() {
     setAssistedBorrowInitialItemId(selected[0].id);
     setAssistedBorrowGuideId(guide.id);
     setAssistedBorrowTitle("Borrow Marked Equipment for CI");
-    setAssistedBorrowDescription("Choose one marked item to record for a registered Clinical Instructor. Marked items are processed one at a time, and each CI can have only one active assisted borrow.");
+    setAssistedBorrowDescription("Set a quantity for every marked item. All marked items will be recorded together for the selected registered Clinical Instructor, or none will be recorded if validation fails.");
     setIsAssistedBorrowDialogOpen(true);
   };
 
@@ -165,11 +173,14 @@ export default function RleGuide() {
     if (!open) resetAssistedBorrowDialog();
   };
 
-  const handleAssistedBorrowSuccess = (transaction: { item_id: string }) => {
+  const handleAssistedBorrowSuccess = (transactions: Transaction | Transaction[]) => {
     if (!assistedBorrowGuideId) return;
+    const createdTransactions = Array.isArray(transactions) ? transactions : [transactions];
+    const createdItemIds = new Set(createdTransactions.map((transaction) => transaction.item_id));
+
     setMarkedEquipmentByGuide((current) => ({
       ...current,
-      [assistedBorrowGuideId]: (current[assistedBorrowGuideId] || []).filter((itemId) => itemId !== transaction.item_id),
+      [assistedBorrowGuideId]: (current[assistedBorrowGuideId] || []).filter((itemId) => !createdItemIds.has(itemId)),
     }));
   };
 
@@ -618,7 +629,9 @@ export default function RleGuide() {
         title={assistedBorrowTitle}
         description={assistedBorrowDescription}
         trigger={null}
+        bulkMode={Boolean(assistedBorrowGuideId)}
         createBorrowForCI={createBorrowForCI}
+        createBulkBorrowForCI={createBulkBorrowForCI}
         refetchTransactions={refetchTransactions}
         onSuccess={handleAssistedBorrowSuccess}
       />
